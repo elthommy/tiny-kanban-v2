@@ -4,8 +4,8 @@ A small dark-themed kanban board ("Flowboard Dark"), implemented from the
 [Claude Design](https://claude.ai/design) project *Kanban board design*.
 
 React frontend (display), Python backend (FastAPI + SQLAlchemy + Alembic)
-owning all board logic, data in a local SQLite file, and a read-only MCP
-server so LLM clients can query the board:
+owning all board logic, data in a local SQLite file, and an MCP server so
+LLM clients can query **and update** the board:
 
 ```bash
 claude mcp add --transport http tiny-kanban http://127.0.0.1:8000/mcp

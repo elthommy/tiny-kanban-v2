@@ -313,3 +313,47 @@ def test_card_summary_shape(seeded):
 def test_get_card_detail_unknown_404(seeded):
     with pytest.raises(NotFoundError):
         service.get_card_detail(seeded, "nope")
+
+
+# --- id-or-name resolvers (used by MCP write tools) -------------------------------
+
+def test_resolve_column_by_id_and_name(seeded):
+    assert service.resolve_column_id(seeded, "col2") == "col2"
+    assert service.resolve_column_id(seeded, "blocked") == "col2"
+
+
+def test_resolve_column_id_wins_over_name(seeded):
+    service.rename_column(seeded, "col2", "col1")  # a column *named* like another's id
+    assert service.resolve_column_id(seeded, "col1") == "col1"
+
+
+def test_resolve_column_ambiguous_name_422(seeded):
+    service.add_column(seeded, "To Do")
+    with pytest.raises(BoardValidationError):
+        service.resolve_column_id(seeded, "to do")
+
+
+def test_resolve_column_unknown_404(seeded):
+    with pytest.raises(NotFoundError):
+        service.resolve_column_id(seeded, "Nowhere")
+
+
+def test_resolve_label_by_id_and_name(seeded):
+    assert service.resolve_label_id(seeded, "l5") == "l5"
+    assert service.resolve_label_id(seeded, "BACKEND") == "l5"
+
+
+def test_resolve_label_ambiguous_name_422(seeded):
+    service.add_label(seeded, "bug")  # existing "Bug" differs only by case
+    with pytest.raises(BoardValidationError):
+        service.resolve_label_id(seeded, "Bug")
+
+
+def test_resolve_label_unknown_404(seeded):
+    with pytest.raises(NotFoundError):
+        service.resolve_label_id(seeded, "Nope")
+
+
+def test_add_card_with_description(seeded):
+    card_id = service.add_card(seeded, "col1", "T", "bottom", "some context")
+    assert board(seeded).cards[card_id].description == "some context"

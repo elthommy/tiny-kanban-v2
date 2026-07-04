@@ -241,6 +241,35 @@ def _label(session: Session, label_id: str) -> models.Label:
     return label
 
 
+def resolve_column_id(session: Session, ref: str) -> str:
+    """Column id from an id or a unique case-insensitive title (MCP convenience)."""
+    if session.get(models.BoardColumn, ref) is not None:
+        return ref
+    matches = [
+        c for c in session.scalars(select(models.BoardColumn))
+        if c.title.lower() == ref.lower()
+    ]
+    if len(matches) > 1:
+        raise BoardValidationError(f"column name {ref!r} is ambiguous, use its id")
+    if not matches:
+        raise NotFoundError(f"unknown column {ref!r}")
+    return matches[0].id
+
+
+def resolve_label_id(session: Session, ref: str) -> str:
+    """Label id from an id or a unique case-insensitive name (MCP convenience)."""
+    if session.get(models.Label, ref) is not None:
+        return ref
+    matches = [
+        lb for lb in session.scalars(select(models.Label)) if lb.name.lower() == ref.lower()
+    ]
+    if len(matches) > 1:
+        raise BoardValidationError(f"label name {ref!r} is ambiguous, use its id")
+    if not matches:
+        raise NotFoundError(f"unknown label {ref!r}")
+    return matches[0].id
+
+
 def _column_cards(session: Session, column_id: str) -> list[models.Card]:
     """Non-archived cards of a column, in board order."""
     return list(
@@ -302,11 +331,17 @@ def archive_all(session: Session, column_id: str) -> None:
 
 # --- card mutations -----------------------------------------------------------
 
-def add_card(session: Session, column_id: str, title: str, position: str = "bottom") -> str:
+def add_card(
+    session: Session,
+    column_id: str,
+    title: str,
+    position: str = "bottom",
+    description: str = "",
+) -> str:
     _column(session, column_id)
     cards = _column_cards(session, column_id)
     card_id = uid("c")
-    card = models.Card(id=card_id, title=title, description="", archived=False)
+    card = models.Card(id=card_id, title=title, description=description, archived=False)
     session.add(card)
     cards.insert(0, card) if position == "top" else cards.append(card)
     _place_cards(cards, column_id)

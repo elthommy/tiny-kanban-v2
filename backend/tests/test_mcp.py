@@ -59,10 +59,20 @@ def test_no_redirect_on_bare_mcp_path(client):
     assert r.status_code == 200  # a 307 here breaks MCP clients that don't follow redirects
 
 
-def test_tools_list_exposes_exactly_the_read_tools(client):
+READ_TOOLS = {"get_board", "list_cards", "get_card"}
+WRITE_TOOLS = {
+    "add_column", "rename_column", "delete_column", "archive_all_cards",
+    "add_card", "update_card", "move_card", "archive_card", "restore_card", "delete_card",
+    "add_card_label", "remove_card_label",
+    "add_checklist_item", "update_checklist_item", "delete_checklist_item",
+    "create_label", "rename_label", "delete_label",
+}
+
+
+def test_tools_list_exposes_exactly_the_expected_tools(client):
     body = rpc(client, "tools/list")
     names = {t["name"] for t in body["result"]["tools"]}
-    assert names == {"get_board", "list_cards", "get_card"}
+    assert names == READ_TOOLS | WRITE_TOOLS
 
 
 def test_get_board_tool(seeded_client):

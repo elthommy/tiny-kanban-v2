@@ -2,7 +2,7 @@
 
 A dark-themed kanban board with a **React frontend** (display only) and a
 **Python backend** (FastAPI + SQLAlchemy 2.0 + Alembic + SQLite) that owns all
-logic and data, plus a **read-only MCP server** for LLM clients. This file is
+logic and data, plus an **MCP server (read + write)** for LLM clients. This file is
 the map for anyone — human or LLM agent — making changes.
 
 Design principle: **the frontend stays dumb, logic lives in Python.**
@@ -58,7 +58,7 @@ gitignored).
 browser ──HTTP──> FastAPI (backend/src/tiny_kanban/)
 LLM client ──MCP (streamable HTTP /mcp)──┘
     api.py         REST endpoints — thin wrappers, no rules
-    mcp_server.py  read-only MCP tools — thin wrappers, no rules
+    mcp_server.py  MCP tools (read + write) — thin wrappers, no rules
     service.py     ALL board rules + queries        ← the interesting file
     models.py      SQLAlchemy tables    schemas.py  Pydantic (JSON contract)
     seed.py        demo board           config.py   settings + label PALETTE
@@ -86,7 +86,7 @@ in `main.py` for `NotFoundError` / `BoardValidationError`).
 The label color `PALETTE` in `config.py` mirrors `frontend/src/config.ts`.
 Change one side → change the other → cover with a round-trip test.
 
-### MCP server (read-only)
+### MCP server (read + write)
 
 Mounted at **`/mcp`** (streamable HTTP) in the same process. Register:
 
@@ -94,11 +94,26 @@ Mounted at **`/mcp`** (streamable HTTP) in the same process. Register:
 claude mcp add --transport http tiny-kanban http://127.0.0.1:8000/mcp
 ```
 
-Tools: `get_board`, `list_cards(query?, column?, label?, archived?)`,
-`get_card(card_id)` — all thin wrappers over `service.py` queries
-(`search_cards`, `get_card_detail`). The MCP reads the DB only after the first
-UI/REST access has seeded it. **No write tools yet** (roadmap) — that also
-means MCP cannot conflict with the UI's writes.
+All tools are thin wrappers over `service.py` — one tool per query/mutation:
+
+- **Read**: `get_board` · `list_cards(query?, column?, label?, archived?)` ·
+  `get_card(card_id)`
+- **Columns**: `add_column` · `rename_column` · `delete_column` (cards → archive)
+  · `archive_all_cards`
+- **Cards**: `add_card` (title, description, top/bottom) · `update_card` ·
+  `move_card` · `archive_card` · `restore_card` · `delete_card`
+- **Card labels / checklist**: `add_card_label` · `remove_card_label` ·
+  `add_checklist_item` · `update_checklist_item` · `delete_checklist_item`
+- **Labels**: `create_label` (palette color auto-picked) · `rename_label` ·
+  `delete_label` (colors are changed in the UI, not via MCP)
+
+`column`/`label` arguments accept an **id or a unique case-insensitive name**
+(resolved by `resolve_column_id`/`resolve_label_id` in `service.py` — ambiguous
+names are a 422-style tool error); `card_id`/`item_id` are always ids. Write
+tools bump the board version like any REST mutation. Concurrency note: the UI
+does not poll, so it shows MCP changes after its next structural action or a
+reload; UI text edits PATCH only their own fields, so they can't overwrite
+unrelated MCP writes.
 
 ### Frontend contract
 
@@ -121,7 +136,8 @@ Fixtures in `tests/conftest.py`: `settings` (tmp SQLite), `session` (migrated
 DB, for service-level tests), `client` (full-app TestClient incl. lifespan +
 MCP mount), payload builders. Files map to layers: `test_service_mutations.py`
 (board rules), `test_api_mutations.py` (HTTP), `test_versioning.py`
-(ETag/If-Match), `test_mcp.py` (JSON-RPC smoke), plus the Phase 1 files.
+(ETag/If-Match), `test_mcp.py` / `test_mcp_write.py` (JSON-RPC read/write),
+plus the Phase 1 files.
 **Every new board rule needs tests at the service and HTTP layers.**
 
 **Frontend (minimal by design)** — `cd frontend && npm test`: only `api.ts`
@@ -163,8 +179,7 @@ Migrations run automatically at startup; users never run Alembic by hand.
 ## Roadmap
 
 Done: SQLite + Alembic (Phase 1) · per-resource API, rules in `service.py`,
-board version/ETag, read-only MCP at `/mcp` (Phase 2).
+board version/ETag, MCP at `/mcp` (Phase 2) · MCP write tools.
 
-Next ideas: MCP **write** tools (reuse service mutations; they're already
-fine-grained and version-bumping) · due dates · card dependencies
-(`card_dependencies` table + FK cascade) — each lands as an Alembic migration.
+Next ideas: due dates · card dependencies (`card_dependencies` table + FK
+cascade) — each lands as an Alembic migration.
