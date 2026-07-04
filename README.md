@@ -3,8 +3,19 @@
 A small dark-themed kanban board ("Flowboard Dark"), implemented from the
 [Claude Design](https://claude.ai/design) project *Kanban board design*.
 
-Everything runs client-side; the board is persisted to `localStorage`
-(key `flowboard-kanban-dark-v1`). First launch seeds a demo board.
+React frontend (display), Python backend (FastAPI + SQLAlchemy + Alembic),
+data in a local SQLite file.
+
+## Quick start
+
+Requires [uv](https://docs.astral.sh/uv/) and Node.js.
+
+```bash
+./start.sh          # build the UI once and serve everything at http://127.0.0.1:8000
+./start.sh dev      # development: backend auto-reload + Vite HMR
+```
+
+Ports and the database path are configurable — copy `.env.example` to `.env`.
 
 ## Features
 
@@ -18,15 +29,14 @@ Everything runs client-side; the board is persisted to `localStorage`
 - Archive view: search, restore to the original column, permanently delete
 
 Behavior toggles (confirmation dialogs, new-card position, archive sort order)
-live in `src/config.ts`.
+live in `frontend/src/config.ts`.
 
-## Development
+## Tests
 
 ```bash
-npm install
-npm run dev      # start dev server
-npm run build    # type-check + production build
-npm run preview  # serve the production build
+cd backend && uv run pytest    # the thorough suite
+cd frontend && npm test        # minimal API-client tests
 ```
 
-Stack: Vite, React 19, TypeScript. No backend.
+Architecture, data model, and contribution guide (for humans and LLM agents):
+see [AGENTS.md](AGENTS.md).

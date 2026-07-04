@@ -19,7 +19,34 @@ function archiveInto(cards: Record<string, Card>, cardId: string, fromColId: str
 }
 
 export default function App() {
-  const [data, setData] = useState<BoardData>(loadBoard)
+  const [board, setBoard] = useState<BoardData | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const load = () => {
+    setLoadError(null)
+    loadBoard()
+      .then(setBoard)
+      .catch((err: unknown) => setLoadError(err instanceof Error ? err.message : String(err)))
+  }
+  useEffect(load, [])
+
+  if (loadError) {
+    return (
+      <div className="app-status">
+        <p>Cannot reach the backend ({loadError}).</p>
+        <p>
+          Start it with <code>./start.sh</code>, then retry.
+        </p>
+        <button onClick={load}>Retry</button>
+      </div>
+    )
+  }
+  if (!board) return <div className="app-status">Loading…</div>
+  return <KanbanApp initial={board} />
+}
+
+function KanbanApp({ initial }: { initial: BoardData }) {
+  const [data, setData] = useState<BoardData>(initial)
   const [view, setView] = useState<'board' | 'archive'>('board')
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [menuColId, setMenuColId] = useState<string | null>(null)
@@ -31,8 +58,9 @@ export default function App() {
   const dragCardId = useRef<string | null>(null)
 
   useEffect(() => {
-    saveBoard(data)
-  }, [data])
+    // Identity check skips the save of the board we just loaded
+    if (data !== initial) saveBoard(data)
+  }, [data, initial])
 
   const labelMap = useMemo(() => {
     const m: Record<string, Label> = {}

@@ -37,6 +37,39 @@ textarea {
 }
 
 /* ---- app shell ---- */
+.app-status {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #17161a;
+  color: #a7a3b3;
+  font-family: 'Figtree', system-ui, sans-serif;
+  font-size: 15px;
+  text-align: center;
+  padding: 24px;
+}
+.app-status code {
+  color: #eceaf2;
+  background: #26242b;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+.app-status button {
+  margin-top: 6px;
+  padding: 8px 18px;
+  border: 1px solid #3e3b47;
+  border-radius: 8px;
+  background: #26242b;
+  color: #eceaf2;
+  font: inherit;
+  cursor: pointer;
+}
+.app-status button:hover {
+  background: #322f3a;
+}
 .app {
   height: 100vh;
   display: flex;

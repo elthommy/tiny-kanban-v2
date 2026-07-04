@@ -3,3 +3,13 @@ dist
 *.tsbuildinfo
 *.local
 .DS_Store
+
+# backend
+.venv
+__pycache__/
+*.pyc
+backend/data/
+.pytest_cache/
+
+# local configuration (copy .env.example instead)
+.env
