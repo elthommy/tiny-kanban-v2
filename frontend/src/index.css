@@ -70,6 +70,26 @@ textarea {
 .app-status button:hover {
   background: #322f3a;
 }
+.action-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 28px;
+  background: #3d1f24;
+  color: #f0a6a6;
+  font-size: 13px;
+  border-bottom: 1px solid #5a2e35;
+  flex: 0 0 auto;
+}
+.action-error button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0 4px;
+}
 .app {
   height: 100vh;
   display: flex;

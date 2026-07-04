@@ -5,6 +5,8 @@ consumes/produces these payloads without any mapping. If you change these, chang
 frontend/src/types.ts accordingly (and vice versa).
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -47,3 +49,48 @@ class BoardData(Schema):
     columns: list[ColumnSchema]
     cards: dict[str, CardSchema]
     labels: list[LabelSchema]
+
+
+# --- mutation request bodies (Phase 2 per-resource API) ----------------------
+
+class ColumnCreate(Schema):
+    title: str
+
+
+class ColumnPatch(Schema):
+    title: str
+
+
+class CardCreate(Schema):
+    title: str
+    position: Literal["top", "bottom"] = "bottom"
+
+
+class CardTextPatch(Schema):
+    title: str | None = None
+    description: str | None = None
+
+
+class CardMove(Schema):
+    toColumnId: str
+    beforeCardId: str | None = None
+
+
+class ChecklistCreate(Schema):
+    text: str
+
+
+class ChecklistPatch(Schema):
+    done: bool | None = None
+    text: str | None = None
+
+
+class LabelCreate(Schema):
+    name: str | None = None
+
+
+class LabelPatch(Schema):
+    name: str | None = None
+    bg: str | None = None
+    fg: str | None = None
+    dot: str | None = None

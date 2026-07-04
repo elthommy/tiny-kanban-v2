@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ArchiveActions, BoardActions, CardActions, LabelEditorActions } from './actions'
-import { ARCHIVE_SORT, CONFIRM_DELETE, NEW_CARD_POSITION, PALETTE } from './config'
+import { api, loadBoard } from './api'
+import { ARCHIVE_SORT, CONFIRM_DELETE, NEW_CARD_POSITION } from './config'
 import type { LabelColor } from './config'
-import { loadBoard, saveBoard, uid } from './storage'
 import type { BoardData, Card, Column, Label } from './types'
 import ArchiveView from './components/ArchiveView'
 import Board from './components/Board'
@@ -10,12 +10,6 @@ import CardModal from './components/CardModal'
 
 function confirmOk(msg: string): boolean {
   return !CONFIRM_DELETE || window.confirm(msg)
-}
-
-function archiveInto(cards: Record<string, Card>, cardId: string, fromColId: string | null): Record<string, Card> {
-  const card = cards[cardId]
-  if (!card) return cards
-  return { ...cards, [cardId]: { ...card, archived: true, archivedFrom: fromColId, archivedAt: Date.now() } }
 }
 
 export default function App() {
@@ -45,8 +39,12 @@ export default function App() {
   return <KanbanApp initial={board} />
 }
 
+/** Display layer only: board rules live in the backend (service.py). Actions
+ *  call the API and adopt the returned board; text edits update local state
+ *  optimistically while api.ts debounces the PATCH behind the scenes. */
 function KanbanApp({ initial }: { initial: BoardData }) {
   const [data, setData] = useState<BoardData>(initial)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [view, setView] = useState<'board' | 'archive'>('board')
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [menuColId, setMenuColId] = useState<string | null>(null)
@@ -57,10 +55,15 @@ function KanbanApp({ initial }: { initial: BoardData }) {
   const [archiveQuery, setArchiveQuery] = useState('')
   const dragCardId = useRef<string | null>(null)
 
-  useEffect(() => {
-    // Identity check skips the save of the board we just loaded
-    if (data !== initial) saveBoard(data)
-  }, [data, initial])
+  /** Run a structural mutation and adopt the server's board. */
+  const apply = (mutation: Promise<BoardData>) => {
+    mutation
+      .then((b) => {
+        setData(b)
+        setActionError(null)
+      })
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
+  }
 
   const labelMap = useMemo(() => {
     const m: Record<string, Label> = {}
@@ -68,8 +71,8 @@ function KanbanApp({ initial }: { initial: BoardData }) {
     return m
   }, [data.labels])
 
+  // Optimistic local updates backing the per-keystroke text inputs
   const patchColumns = (fn: (columns: Column[]) => Column[]) => setData((d) => ({ ...d, columns: fn(d.columns) }))
-
   const updateCard = (id: string, patch: Partial<Card>) =>
     setData((d) => (d.cards[id] ? { ...d, cards: { ...d.cards, [id]: { ...d.cards[id], ...patch } } } : d))
 
@@ -79,56 +82,24 @@ function KanbanApp({ initial }: { initial: BoardData }) {
     setDragOver({ col: null, card: null })
   }
 
-  const moveCard = (cardId: string | null, toColId: string, beforeId: string | null) => {
-    if (!cardId || cardId === beforeId) return
-    patchColumns((columns) => {
-      const stripped = columns.map((c) => ({ ...c, cardIds: c.cardIds.filter((id) => id !== cardId) }))
-      const to = stripped.find((c) => c.id === toColId)
-      if (!to) return columns
-      const idx = beforeId ? to.cardIds.indexOf(beforeId) : -1
-      if (idx >= 0) to.cardIds.splice(idx, 0, cardId)
-      else to.cardIds.push(cardId)
-      return stripped
-    })
-  }
-
   const boardActions: BoardActions = {
-    renameColumn: (colId, title) => patchColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, title } : c))),
+    renameColumn: (colId, title) => {
+      patchColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, title } : c)))
+      api.renameColumn(colId, title)
+    },
     addCard: (colId, title) => {
-      setData((d) => {
-        const id = uid('c')
-        const card: Card = { id, title, labels: [], checklist: [], description: '', archived: false }
-        const columns = d.columns.map((c) => {
-          if (c.id !== colId) return c
-          const cardIds = NEW_CARD_POSITION === 'top' ? [id, ...c.cardIds] : [...c.cardIds, id]
-          return { ...c, cardIds }
-        })
-        return { ...d, columns, cards: { ...d.cards, [id]: card } }
-      })
+      apply(api.addCard(colId, title, NEW_CARD_POSITION))
       setMenuColId(null)
     },
-    addColumn: (title) => patchColumns((cols) => [...cols, { id: uid('col'), title, cardIds: [] }]),
+    addColumn: (title) => apply(api.addColumn(title)),
     archiveAll: (colId) => {
-      setData((d) => {
-        const col = d.columns.find((c) => c.id === colId)
-        if (!col) return d
-        let cards = d.cards
-        col.cardIds.forEach((cid) => (cards = archiveInto(cards, cid, colId)))
-        return { ...d, cards, columns: d.columns.map((c) => (c.id === colId ? { ...c, cardIds: [] } : c)) }
-      })
+      apply(api.archiveAll(colId))
       setMenuColId(null)
     },
     deleteColumn: (colId) => {
-      if (!confirmOk('Delete this column? Its cards will be moved to Archive.')) {
-        setMenuColId(null)
-        return
+      if (confirmOk('Delete this column? Its cards will be moved to Archive.')) {
+        apply(api.deleteColumn(colId))
       }
-      setData((d) => {
-        const col = d.columns.find((c) => c.id === colId)
-        let cards = d.cards
-        col?.cardIds.forEach((cid) => (cards = archiveInto(cards, cid, colId)))
-        return { ...d, cards, columns: d.columns.filter((c) => c.id !== colId) }
-      })
       setMenuColId(null)
     },
     toggleColumnMenu: (colId) => setMenuColId((cur) => (cur === colId ? null : colId)),
@@ -159,8 +130,10 @@ function KanbanApp({ initial }: { initial: BoardData }) {
     },
     drop: (e, colId) => {
       e.preventDefault()
-      moveCard(dragCardId.current, colId, dragOver.card)
+      const cardId = dragCardId.current
+      const beforeId = dragOver.card
       clearDrag()
+      if (cardId && cardId !== beforeId) apply(api.moveCard(cardId, colId, beforeId))
     },
   }
 
@@ -168,43 +141,39 @@ function KanbanApp({ initial }: { initial: BoardData }) {
 
   const cardActions: CardActions = {
     close: () => setOpenCardId(null),
-    setTitle: (title) => openCardId && updateCard(openCardId, { title }),
-    setDescription: (description) => openCardId && updateCard(openCardId, { description }),
+    setTitle: (title) => {
+      if (!openCardId) return
+      updateCard(openCardId, { title })
+      api.patchCardText(openCardId, { title })
+    },
+    setDescription: (description) => {
+      if (!openCardId) return
+      updateCard(openCardId, { description })
+      api.patchCardText(openCardId, { description })
+    },
     toggleLabel: (labelId) => {
       if (!openCard) return
-      const labels = openCard.labels.includes(labelId)
-        ? openCard.labels.filter((l) => l !== labelId)
-        : [...openCard.labels, labelId]
-      updateCard(openCard.id, { labels })
+      apply(
+        openCard.labels.includes(labelId)
+          ? api.removeCardLabel(openCard.id, labelId)
+          : api.addCardLabel(openCard.id, labelId),
+      )
     },
-    addCheckItem: (text) =>
-      openCard && updateCard(openCard.id, { checklist: [...openCard.checklist, { id: uid('ck'), text, done: false }] }),
-    toggleCheckItem: (itemId) =>
-      openCard &&
-      updateCard(openCard.id, {
-        checklist: openCard.checklist.map((it) => (it.id === itemId ? { ...it, done: !it.done } : it)),
-      }),
-    deleteCheckItem: (itemId) =>
-      openCard && updateCard(openCard.id, { checklist: openCard.checklist.filter((it) => it.id !== itemId) }),
+    addCheckItem: (text) => openCard && apply(api.addCheckItem(openCard.id, text)),
+    toggleCheckItem: (itemId) => {
+      if (!openCard) return
+      const item = openCard.checklist.find((it) => it.id === itemId)
+      if (item) apply(api.patchCheckItem(openCard.id, itemId, { done: !item.done }))
+    },
+    deleteCheckItem: (itemId) => openCard && apply(api.deleteCheckItem(openCard.id, itemId)),
     archiveCard: () => {
       if (!openCardId) return
-      setData((d) => {
-        const col = d.columns.find((c) => c.cardIds.includes(openCardId))
-        return {
-          ...d,
-          cards: archiveInto(d.cards, openCardId, col ? col.id : null),
-          columns: d.columns.map((c) => ({ ...c, cardIds: c.cardIds.filter((id) => id !== openCardId) })),
-        }
-      })
+      apply(api.archiveCard(openCardId))
       setOpenCardId(null)
     },
     deleteCard: () => {
       if (!openCardId || !confirmOk('Delete this card? This cannot be undone.')) return
-      setData((d) => {
-        const cards = { ...d.cards }
-        delete cards[openCardId]
-        return { ...d, cards, columns: d.columns.map((c) => ({ ...c, cardIds: c.cardIds.filter((id) => id !== openCardId) })) }
-      })
+      apply(api.deleteCard(openCardId))
       setOpenCardId(null)
     },
   }
@@ -214,26 +183,18 @@ function KanbanApp({ initial }: { initial: BoardData }) {
       setLabelEditorOpen((v) => !v)
       setColorPickerLabel(null)
     },
-    addLabel: () =>
-      setData((d) => {
-        const c = PALETTE[d.labels.length % PALETTE.length]
-        return { ...d, labels: [...d.labels, { id: uid('l'), name: 'New label', ...c }] }
-      }),
-    renameLabel: (labelId, name) =>
-      setData((d) => ({ ...d, labels: d.labels.map((l) => (l.id === labelId ? { ...l, name } : l)) })),
+    addLabel: () => apply(api.addLabel()),
+    renameLabel: (labelId, name) => {
+      setData((d) => ({ ...d, labels: d.labels.map((l) => (l.id === labelId ? { ...l, name } : l)) }))
+      api.renameLabel(labelId, name)
+    },
     deleteLabel: (labelId) => {
-      setData((d) => {
-        const cards: Record<string, Card> = {}
-        Object.values(d.cards).forEach((c) => {
-          cards[c.id] = c.labels.includes(labelId) ? { ...c, labels: c.labels.filter((l) => l !== labelId) } : c
-        })
-        return { ...d, cards, labels: d.labels.filter((l) => l.id !== labelId) }
-      })
+      apply(api.deleteLabel(labelId))
       setColorPickerLabel((cur) => (cur === labelId ? null : cur))
     },
     togglePicker: (labelId) => setColorPickerLabel((cur) => (cur === labelId ? null : labelId)),
     setColor: (labelId, color: LabelColor) => {
-      setData((d) => ({ ...d, labels: d.labels.map((l) => (l.id === labelId ? { ...l, ...color } : l)) }))
+      apply(api.setLabelColor(labelId, color))
       setColorPickerLabel(null)
     },
   }
@@ -262,27 +223,10 @@ function KanbanApp({ initial }: { initial: BoardData }) {
 
   const archiveActions: ArchiveActions = {
     setQuery: setArchiveQuery,
-    restore: (cardId) =>
-      setData((d) => {
-        const card = d.cards[cardId]
-        if (!card) return d
-        const target = d.columns.find((c) => c.id === card.archivedFrom) || d.columns[0]
-        const restored = { ...card, archived: false }
-        delete restored.archivedFrom
-        delete restored.archivedAt
-        return {
-          ...d,
-          cards: { ...d.cards, [cardId]: restored },
-          columns: target ? d.columns.map((c) => (c.id === target.id ? { ...c, cardIds: [...c.cardIds, cardId] } : c)) : d.columns,
-        }
-      }),
+    restore: (cardId) => apply(api.restoreCard(cardId)),
     deleteForever: (cardId) => {
       if (!confirmOk('Permanently delete this card? This cannot be undone.')) return
-      setData((d) => {
-        const cards = { ...d.cards }
-        delete cards[cardId]
-        return { ...d, cards, columns: d.columns.map((c) => ({ ...c, cardIds: c.cardIds.filter((id) => id !== cardId) })) }
-      })
+      apply(api.deleteCard(cardId))
     },
   }
 
@@ -314,6 +258,13 @@ function KanbanApp({ initial }: { initial: BoardData }) {
           </button>
         </div>
       </header>
+
+      {actionError && (
+        <div className="action-error">
+          <span>Sync failed: {actionError}</span>
+          <button onClick={() => setActionError(null)}>×</button>
+        </div>
+      )}
 
       {view === 'board' ? (
         <Board
