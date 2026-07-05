@@ -1,0 +1,21 @@
+# Dependabot: one combined frontend + backend version-update PR, at most weekly.
+# Security fixes for known vulnerabilities are NOT rate-limited by this schedule:
+# enable "Dependabot security updates" in the repo settings and those PRs open
+# as soon as an advisory affects a dependency.
+version: 2
+
+multi-ecosystem-groups:
+  weekly-deps:
+    schedule:
+      interval: "weekly"
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    patterns: ["*"]
+    multi-ecosystem-group: "weekly-deps"
+
+  - package-ecosystem: "uv"
+    directory: "/backend"
+    patterns: ["*"]
+    multi-ecosystem-group: "weekly-deps"
