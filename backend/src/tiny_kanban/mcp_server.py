@@ -75,6 +75,13 @@ def build_mcp(settings: Settings) -> FastMCP:
     # --- write tools: one per service mutation, mutate then return the result --
 
     @mcp.tool()
+    def set_board_subtitle(subtitle: str) -> dict:
+        """Set the board's subtitle (shown under the app name in the header)."""
+        with session_factory() as session:
+            service.set_subtitle(session, subtitle)
+            return {"subtitle": subtitle}
+
+    @mcp.tool()
     def add_column(title: str) -> dict:
         """Add a column at the right end of the board."""
         with session_factory() as session:

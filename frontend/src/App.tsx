@@ -235,7 +235,16 @@ function KanbanApp({ initial }: { initial: BoardData }) {
       <header className="app-header">
         <div className="brand-row">
           <div className="brand">Tiny-kanban v2</div>
-          <div className="brand-sub">Product · Sprint 24</div>
+          <input
+            className="brand-sub"
+            value={data.subtitle}
+            aria-label="Board subtitle"
+            onChange={(e) => {
+              const subtitle = e.target.value
+              setData((d) => ({ ...d, subtitle }))
+              api.setSubtitle(subtitle)
+            }}
+          />
         </div>
         <div className="seg">
           <button

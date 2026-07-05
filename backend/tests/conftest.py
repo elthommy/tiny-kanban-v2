@@ -67,8 +67,13 @@ def make_card(id: str = "c1", title: str = "A card", **overrides) -> dict:
     return card
 
 
-def make_board(columns=None, cards=None, labels=None) -> dict:
-    return {"columns": columns or [], "cards": cards or {}, "labels": labels or []}
+def make_board(columns=None, cards=None, labels=None, subtitle="Product · Sprint 24") -> dict:
+    return {
+        "subtitle": subtitle,
+        "columns": columns or [],
+        "cards": cards or {},
+        "labels": labels or [],
+    }
 
 
 def simple_board() -> dict:

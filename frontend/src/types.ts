@@ -30,6 +30,7 @@ export interface Column {
 }
 
 export interface BoardData {
+  subtitle: string
   columns: Column[]
   cards: Record<string, Card>
   labels: Label[]

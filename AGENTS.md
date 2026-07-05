@@ -75,7 +75,7 @@ in `main.py` for `NotFoundError` / `BoardValidationError`).
 
 | Area | Endpoints |
 |---|---|
-| Board | `GET /api/board` · `PUT /api/board` (import path; optional `If-Match` → 412 on stale version) |
+| Board | `GET /api/board` · `PUT /api/board` (import path; optional `If-Match` → 412 on stale version) · `PATCH /api/board` (subtitle) |
 | Columns | `POST /api/columns` · `PATCH·DELETE /api/columns/{id}` · `POST …/archive-all` · `POST …/cards` |
 | Cards | `PATCH·DELETE /api/cards/{id}` · `POST …/move` · `POST …/archive` · `POST …/restore` |
 | Card labels | `PUT·DELETE /api/cards/{id}/labels/{labelId}` |
@@ -98,6 +98,7 @@ All tools are thin wrappers over `service.py` — one tool per query/mutation:
 
 - **Read**: `get_board` · `list_cards(query?, column?, label?, archived?)` ·
   `get_card(card_id)`
+- **Board**: `set_board_subtitle` (header subtitle, stored in `meta`)
 - **Columns**: `add_column` · `rename_column` · `delete_column` (cards → archive)
   · `archive_all_cards`
 - **Cards**: `add_card` (title, description, top/bottom) · `update_card` ·

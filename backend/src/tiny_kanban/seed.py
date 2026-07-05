@@ -82,4 +82,9 @@ def seed_board() -> BoardData:
         ColumnSchema(id="col3", title="Pending Validation", cardIds=["c6", "c7"]),
         ColumnSchema(id="col4", title="Done", cardIds=["c8", "c9"]),
     ]
-    return BoardData(columns=columns, cards={c.id: c for c in cards}, labels=labels)
+    return BoardData(
+        subtitle="Product · Sprint 24",
+        columns=columns,
+        cards={c.id: c for c in cards},
+        labels=labels,
+    )

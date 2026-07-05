@@ -357,3 +357,37 @@ def test_resolve_label_unknown_404(seeded):
 def test_add_card_with_description(seeded):
     card_id = service.add_card(seeded, "col1", "T", "bottom", "some context")
     assert board(seeded).cards[card_id].description == "some context"
+
+
+# --- board subtitle ----------------------------------------------------------------
+
+def test_subtitle_defaults_on_fresh_db(session):
+    assert service.get_subtitle(session) == service.DEFAULT_SUBTITLE
+    assert board(session).subtitle == service.DEFAULT_SUBTITLE
+
+
+def test_set_subtitle(seeded):
+    service.set_subtitle(seeded, "Platform · Sprint 25")
+    assert service.get_subtitle(seeded) == "Platform · Sprint 25"
+    assert board(seeded).subtitle == "Platform · Sprint 25"
+
+
+def test_set_subtitle_bumps_version(seeded):
+    before = service.get_version(seeded)
+    service.set_subtitle(seeded, "New")
+    assert service.get_version(seeded) == before + 1
+
+
+def test_replace_board_with_subtitle_stores_it(session):
+    b = seed_board()
+    b.subtitle = "Imported"
+    service.replace_board(session, b)
+    assert service.get_subtitle(session) == "Imported"
+
+
+def test_replace_board_without_subtitle_keeps_stored_one(seeded):
+    service.set_subtitle(seeded, "Custom")
+    b = seed_board()
+    b.subtitle = None  # pre-subtitle exports omit the field
+    service.replace_board(seeded, b)
+    assert service.get_subtitle(seeded) == "Custom"

@@ -10,7 +10,7 @@ def seeded_client(client):
 def board_of(response) -> dict:
     assert response.status_code == 200, response.text
     body = response.json()
-    assert set(body) == {"columns", "cards", "labels"}, "mutations must return the full board"
+    assert set(body) == {"subtitle", "columns", "cards", "labels"}, "mutations must return the full board"
     return body
 
 
@@ -193,3 +193,15 @@ def test_mutations_survive_restart(settings):
     with TestClient(create_app(settings)) as client:
         titles = [c["title"] for c in client.get("/api/board").json()["columns"]]
         assert titles[-1] == "Kept"
+
+
+# --- board subtitle -----------------------------------------------------------------
+
+def test_patch_board_subtitle(seeded_client):
+    b = board_of(seeded_client.patch("/api/board", json={"subtitle": "Platform · Sprint 25"}))
+    assert b["subtitle"] == "Platform · Sprint 25"
+    assert seeded_client.get("/api/board").json()["subtitle"] == "Platform · Sprint 25"
+
+
+def test_patch_board_missing_subtitle_422(seeded_client):
+    assert seeded_client.patch("/api/board", json={}).status_code == 422

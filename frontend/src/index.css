@@ -120,8 +120,17 @@ textarea {
   color: #eceaf2;
 }
 .brand-sub {
+  border: none;
+  background: transparent;
+  font-family: inherit;
   font-size: 13px;
   color: #8b8698;
+  padding: 3px 5px;
+  border-radius: 6px;
+  width: 220px;
+}
+.brand-sub:focus {
+  background: #302e37;
 }
 .seg {
   display: flex;

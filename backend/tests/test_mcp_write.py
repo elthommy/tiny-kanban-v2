@@ -160,3 +160,11 @@ def test_mcp_write_bumps_the_board_version(seeded_client):
     tool_result(seeded_client, "add_column", {"title": "Bump"})
     after = seeded_client.get("/api/board").headers["etag"]
     assert int(after.strip('"')) == int(before.strip('"')) + 1
+
+
+# --- board ---------------------------------------------------------------------
+
+def test_set_board_subtitle(seeded_client):
+    result = tool_result(seeded_client, "set_board_subtitle", {"subtitle": "Ops · Sprint 30"})
+    assert result == {"subtitle": "Ops · Sprint 30"}
+    assert rest_board(seeded_client)["subtitle"] == "Ops · Sprint 30"

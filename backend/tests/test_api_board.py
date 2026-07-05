@@ -23,6 +23,7 @@ def test_first_get_returns_seeded_demo_board(client):
     ]
     assert len(board["cards"]) == 9
     assert len(board["labels"]) == 6
+    assert board["subtitle"] == "Product · Sprint 24"
 
 
 def test_get_is_stable_across_calls(client):
@@ -33,7 +34,7 @@ def test_cleared_board_is_not_reseeded(client):
     client.get("/api/board")  # triggers seeding
     put_ok(client, make_board())  # user empties the board
     board = client.get("/api/board").json()
-    assert board == {"columns": [], "cards": {}, "labels": []}
+    assert board == make_board()
 
 
 def test_put_before_first_get_prevents_seeding(client):
@@ -84,6 +85,19 @@ ORPHAN_BOARD = make_board(cards={"c1": make_card("c1", "orphan, not archived")})
 def test_put_get_round_trip_identity(client, board):
     put_ok(client, board)
     assert client.get("/api/board").json() == board
+
+
+def test_put_with_subtitle_stores_it(client):
+    put_ok(client, make_board(subtitle="Platform · Sprint 25"))
+    assert client.get("/api/board").json()["subtitle"] == "Platform · Sprint 25"
+
+
+def test_put_without_subtitle_keeps_stored_one(client):
+    put_ok(client, make_board(subtitle="Platform · Sprint 25"))
+    legacy = simple_board()
+    legacy.pop("subtitle")  # pre-subtitle exports (e.g. localStorage migration)
+    put_ok(client, legacy)
+    assert client.get("/api/board").json()["subtitle"] == "Platform · Sprint 25"
 
 
 def test_data_survives_app_restart(settings):

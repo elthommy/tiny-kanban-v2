@@ -46,12 +46,19 @@ class ColumnSchema(Schema):
 
 
 class BoardData(Schema):
+    # None on input means "keep the stored subtitle" (older exports predate the
+    # field); get_board always emits a string.
+    subtitle: str | None = None
     columns: list[ColumnSchema]
     cards: dict[str, CardSchema]
     labels: list[LabelSchema]
 
 
 # --- mutation request bodies (Phase 2 per-resource API) ----------------------
+
+class BoardPatch(Schema):
+    subtitle: str
+
 
 class ColumnCreate(Schema):
     title: str

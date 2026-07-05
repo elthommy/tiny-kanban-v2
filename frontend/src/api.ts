@@ -98,6 +98,9 @@ async function mutate(path: string, method: string, body?: unknown): Promise<Boa
 const id = encodeURIComponent
 
 export const api = {
+  // board
+  setSubtitle: (subtitle: string) => patchTextDebounced('/api/board', { subtitle }),
+
   // columns
   addColumn: (title: string) => mutate('/api/columns', 'POST', { title }),
   deleteColumn: (colId: string) => mutate(`/api/columns/${id(colId)}`, 'DELETE'),

@@ -63,6 +63,12 @@ def write_board(
     return board_response(session)
 
 
+@router.patch("/board")
+def patch_board(body: schemas.BoardPatch, session: Session = Depends(get_session)) -> JSONResponse:
+    service.set_subtitle(session, body.subtitle)
+    return board_response(session)
+
+
 # --- columns -------------------------------------------------------------------
 
 @router.post("/columns")

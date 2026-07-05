@@ -61,6 +61,7 @@ def test_no_redirect_on_bare_mcp_path(client):
 
 READ_TOOLS = {"get_board", "list_cards", "get_card"}
 WRITE_TOOLS = {
+    "set_board_subtitle",
     "add_column", "rename_column", "delete_column", "archive_all_cards",
     "add_card", "update_card", "move_card", "archive_card", "restore_card", "delete_card",
     "add_card_label", "remove_card_label",

@@ -18,6 +18,11 @@ from .schemas import BoardData, CardSchema, ChecklistItemSchema, ColumnSchema, L
 
 INITIALIZED_KEY = "initialized"
 VERSION_KEY = "version"
+SUBTITLE_KEY = "subtitle"
+
+# Header subtitle for boards created before the field existed (matches the old
+# hardcoded frontend value).
+DEFAULT_SUBTITLE = "Product · Sprint 24"
 
 _ID_ALPHABET = string.digits + string.ascii_lowercase
 
@@ -52,6 +57,17 @@ def get_version(session: Session) -> int:
     """Monotonic board version, bumped by every mutation. Backs the ETag header."""
     row = session.get(models.Meta, VERSION_KEY)
     return int(row.value) if row else 0
+
+
+def get_subtitle(session: Session) -> str:
+    """Board subtitle shown in the app header (stored in meta)."""
+    row = session.get(models.Meta, SUBTITLE_KEY)
+    return row.value if row else DEFAULT_SUBTITLE
+
+
+def set_subtitle(session: Session, subtitle: str) -> None:
+    session.merge(models.Meta(key=SUBTITLE_KEY, value=subtitle))
+    _finalize(session)
 
 
 def _finalize(session: Session) -> None:
@@ -93,6 +109,7 @@ def get_board(session: Session) -> BoardData:
         column_cards.sort(key=lambda c: c.position or 0)
 
     return BoardData(
+        subtitle=get_subtitle(session),
         columns=[
             ColumnSchema(
                 id=col.id,
@@ -166,6 +183,10 @@ def validate_board(board: BoardData) -> None:
 def replace_board(session: Session, board: BoardData) -> None:
     """Transactionally replace the whole board (Phase 1 write path)."""
     validate_board(board)
+
+    # Absent subtitle (older exports/localStorage boards) keeps the stored one
+    if board.subtitle is not None:
+        session.merge(models.Meta(key=SUBTITLE_KEY, value=board.subtitle))
 
     card_column: dict[str, tuple[str, int]] = {}
     for col in board.columns:
