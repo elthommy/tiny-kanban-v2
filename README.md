@@ -1,5 +1,7 @@
 # Tiny-kanban v2
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A small dark-themed kanban board ("Flowboard Dark"), implemented from the
 [Claude Design](https://claude.ai/design) project *Kanban board design*.
 
@@ -10,6 +12,10 @@ LLM clients can query **and update** the board:
 ```bash
 claude mcp add --transport http tiny-kanban http://127.0.0.1:8000/mcp
 ```
+## Dashboard
+![Screenshot](./doc/screenshots/tiny-kanban-v2_dashboard.png)
+## Card
+![Screenshot](./doc/screenshots/tiny-kanban-v2_card.png)
 
 ## Quick start
 
@@ -45,3 +51,17 @@ cd frontend && npm test        # minimal API-client tests
 
 Architecture, data model, and contribution guide (for humans and LLM agents):
 see [AGENTS.md](AGENTS.md).
+
+## ⚠️ Disclaimer
+
+**This is a personal learning project** created for educational purposes and to experiment with AI-assisted development. It was built to:
+- Explore full-stack development patterns
+- Learn new technologies and frameworks
+- Test AI development tools and workflows
+
+**Use at your own risk.** While functional, this project is not intended for production use without proper review, testing, and security hardening. See the [LICENSE](LICENSE) for full terms.
+
+## Development
+
+This project was developed with assistance from Claude (Anthropic's AI assistant).
+
