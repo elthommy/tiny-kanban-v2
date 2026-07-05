@@ -15,7 +15,9 @@ from .seed import seed_board
 router = APIRouter(prefix="/api")
 
 
-def get_session() -> Session:  # overridden in main.create_app with a real session factory
+def get_session() -> (
+    Session
+):  # overridden in main.create_app with a real session factory
     raise NotImplementedError
 
 
@@ -35,6 +37,7 @@ def health() -> dict[str, str]:
 
 
 # --- whole board -------------------------------------------------------------
+
 
 @router.get("/board")
 def read_board(session: Session = Depends(get_session)) -> JSONResponse:
@@ -64,15 +67,20 @@ def write_board(
 
 
 @router.patch("/board")
-def patch_board(body: schemas.BoardPatch, session: Session = Depends(get_session)) -> JSONResponse:
+def patch_board(
+    body: schemas.BoardPatch, session: Session = Depends(get_session)
+) -> JSONResponse:
     service.set_subtitle(session, body.subtitle)
     return board_response(session)
 
 
 # --- columns -------------------------------------------------------------------
 
+
 @router.post("/columns")
-def create_column(body: schemas.ColumnCreate, session: Session = Depends(get_session)) -> JSONResponse:
+def create_column(
+    body: schemas.ColumnCreate, session: Session = Depends(get_session)
+) -> JSONResponse:
     service.add_column(session, body.title)
     return board_response(session)
 
@@ -86,13 +94,17 @@ def patch_column(
 
 
 @router.delete("/columns/{column_id}")
-def remove_column(column_id: str, session: Session = Depends(get_session)) -> JSONResponse:
+def remove_column(
+    column_id: str, session: Session = Depends(get_session)
+) -> JSONResponse:
     service.delete_column(session, column_id)
     return board_response(session)
 
 
 @router.post("/columns/{column_id}/archive-all")
-def archive_all_cards(column_id: str, session: Session = Depends(get_session)) -> JSONResponse:
+def archive_all_cards(
+    column_id: str, session: Session = Depends(get_session)
+) -> JSONResponse:
     service.archive_all(session, column_id)
     return board_response(session)
 
@@ -106,6 +118,7 @@ def create_card(
 
 
 # --- cards -----------------------------------------------------------------------
+
 
 @router.patch("/cards/{card_id}")
 def patch_card(
@@ -186,8 +199,11 @@ def remove_checklist_item(
 
 # --- labels ------------------------------------------------------------------------
 
+
 @router.post("/labels")
-def create_label(body: schemas.LabelCreate, session: Session = Depends(get_session)) -> JSONResponse:
+def create_label(
+    body: schemas.LabelCreate, session: Session = Depends(get_session)
+) -> JSONResponse:
     service.add_label(session, body.name)
     return board_response(session)
 
@@ -201,6 +217,8 @@ def patch_label(
 
 
 @router.delete("/labels/{label_id}")
-def remove_label(label_id: str, session: Session = Depends(get_session)) -> JSONResponse:
+def remove_label(
+    label_id: str, session: Session = Depends(get_session)
+) -> JSONResponse:
     service.delete_label(session, label_id)
     return board_response(session)

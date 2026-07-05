@@ -1,6 +1,7 @@
 # Tiny-kanban v2
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/elthommy/tiny-kanban-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/elthommy/tiny-kanban-v2/actions/workflows/ci.yml)
 
 A small dark-themed kanban board ("Flowboard Dark"), implemented from the
 [Claude Design](https://claude.ai/design) project *Kanban board design*.

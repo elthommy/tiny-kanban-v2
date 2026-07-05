@@ -29,6 +29,7 @@ def rest_board(client) -> dict:
 
 # --- columns -------------------------------------------------------------------
 
+
 def test_add_column(seeded_client):
     created = tool_result(seeded_client, "add_column", {"title": "Later"})
     cols = rest_board(seeded_client)["columns"]
@@ -56,11 +57,17 @@ def test_archive_all_cards(seeded_client):
 
 # --- cards ---------------------------------------------------------------------
 
+
 def test_add_card_with_description_and_position(seeded_client):
     detail = tool_result(
         seeded_client,
         "add_card",
-        {"column": "To Do", "title": "From MCP", "description": "why not", "position": "top"},
+        {
+            "column": "To Do",
+            "title": "From MCP",
+            "description": "why not",
+            "position": "top",
+        },
     )
     assert detail["column"] == "To Do"
     board = rest_board(seeded_client)
@@ -69,42 +76,63 @@ def test_add_card_with_description_and_position(seeded_client):
 
 
 def test_update_card_keeps_omitted_fields(seeded_client):
-    detail = tool_result(seeded_client, "update_card", {"card_id": "c4", "title": "New title"})
+    detail = tool_result(
+        seeded_client, "update_card", {"card_id": "c4", "title": "New title"}
+    )
     assert detail["title"] == "New title"
     assert detail["description"].startswith("Stripe events")
 
 
 def test_move_card_before_anchor(seeded_client):
     detail = tool_result(
-        seeded_client, "move_card", {"card_id": "c8", "to_column": "To Do", "before_card_id": "c2"}
+        seeded_client,
+        "move_card",
+        {"card_id": "c8", "to_column": "To Do", "before_card_id": "c2"},
     )
     assert detail["column"] == "To Do"
-    assert rest_board(seeded_client)["columns"][0]["cardIds"] == ["c1", "c8", "c2", "c3"]
+    assert rest_board(seeded_client)["columns"][0]["cardIds"] == [
+        "c1",
+        "c8",
+        "c2",
+        "c3",
+    ]
 
 
 def test_archive_then_restore_card(seeded_client):
-    assert tool_result(seeded_client, "archive_card", {"card_id": "c1"})["archived"] is True
+    assert (
+        tool_result(seeded_client, "archive_card", {"card_id": "c1"})["archived"]
+        is True
+    )
     restored = tool_result(seeded_client, "restore_card", {"card_id": "c1"})
     assert restored["archived"] is False
     assert restored["column"] == "To Do"
 
 
 def test_delete_card(seeded_client):
-    assert tool_result(seeded_client, "delete_card", {"card_id": "c3"}) == {"deleted": "c3"}
+    assert tool_result(seeded_client, "delete_card", {"card_id": "c3"}) == {
+        "deleted": "c3"
+    }
     assert "c3" not in rest_board(seeded_client)["cards"]
 
 
 # --- card labels & checklist -----------------------------------------------------
 
+
 def test_add_and_remove_card_label_by_name(seeded_client):
-    detail = tool_result(seeded_client, "add_card_label", {"card_id": "c3", "label": "urgent"})
+    detail = tool_result(
+        seeded_client, "add_card_label", {"card_id": "c3", "label": "urgent"}
+    )
     assert detail["labels"] == ["Urgent"]
-    detail = tool_result(seeded_client, "remove_card_label", {"card_id": "c3", "label": "Urgent"})
+    detail = tool_result(
+        seeded_client, "remove_card_label", {"card_id": "c3", "label": "Urgent"}
+    )
     assert detail["labels"] == []
 
 
 def test_checklist_item_lifecycle(seeded_client):
-    detail = tool_result(seeded_client, "add_checklist_item", {"card_id": "c3", "text": "step"})
+    detail = tool_result(
+        seeded_client, "add_checklist_item", {"card_id": "c3", "text": "step"}
+    )
     item = detail["checklist"][0]
     assert (item["text"], item["done"]) == ("step", False)
 
@@ -124,6 +152,7 @@ def test_checklist_item_lifecycle(seeded_client):
 
 # --- labels ----------------------------------------------------------------------
 
+
 def test_label_lifecycle(seeded_client):
     created = tool_result(seeded_client, "create_label", {"name": "Ops"})
     tool_result(seeded_client, "rename_label", {"label": "Ops", "name": "Infra"})
@@ -135,6 +164,7 @@ def test_label_lifecycle(seeded_client):
 
 
 # --- errors & versioning -----------------------------------------------------------
+
 
 def test_unknown_column_name_reports_tool_error(seeded_client):
     body = rpc(
@@ -164,7 +194,10 @@ def test_mcp_write_bumps_the_board_version(seeded_client):
 
 # --- board ---------------------------------------------------------------------
 
+
 def test_set_board_subtitle(seeded_client):
-    result = tool_result(seeded_client, "set_board_subtitle", {"subtitle": "Ops · Sprint 30"})
+    result = tool_result(
+        seeded_client, "set_board_subtitle", {"subtitle": "Ops · Sprint 30"}
+    )
     assert result == {"subtitle": "Ops · Sprint 30"}
     assert rest_board(seeded_client)["subtitle"] == "Ops · Sprint 30"

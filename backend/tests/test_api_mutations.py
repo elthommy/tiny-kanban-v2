@@ -10,7 +10,9 @@ def seeded_client(client):
 def board_of(response) -> dict:
     assert response.status_code == 200, response.text
     body = response.json()
-    assert set(body) == {"subtitle", "columns", "cards", "labels"}, "mutations must return the full board"
+    assert set(body) == {"subtitle", "columns", "cards", "labels"}, (
+        "mutations must return the full board"
+    )
     return body
 
 
@@ -19,6 +21,7 @@ def column(board: dict, column_id: str) -> dict:
 
 
 # --- columns -------------------------------------------------------------------
+
 
 def test_create_column(seeded_client):
     b = board_of(seeded_client.post("/api/columns", json={"title": "Later"}))
@@ -43,10 +46,15 @@ def test_archive_all(seeded_client):
 
 
 def test_column_endpoints_404_on_unknown_id(seeded_client):
-    assert seeded_client.patch("/api/columns/nope", json={"title": "X"}).status_code == 404
+    assert (
+        seeded_client.patch("/api/columns/nope", json={"title": "X"}).status_code == 404
+    )
     assert seeded_client.delete("/api/columns/nope").status_code == 404
     assert seeded_client.post("/api/columns/nope/archive-all").status_code == 404
-    assert seeded_client.post("/api/columns/nope/cards", json={"title": "X"}).status_code == 404
+    assert (
+        seeded_client.post("/api/columns/nope/cards", json={"title": "X"}).status_code
+        == 404
+    )
 
 
 def test_create_column_missing_title_422(seeded_client):
@@ -55,39 +63,55 @@ def test_create_column_missing_title_422(seeded_client):
 
 # --- cards ---------------------------------------------------------------------------
 
+
 def test_create_card_bottom_by_default(seeded_client):
-    b = board_of(seeded_client.post("/api/columns/col1/cards", json={"title": "Newest"}))
+    b = board_of(
+        seeded_client.post("/api/columns/col1/cards", json={"title": "Newest"})
+    )
     new_id = column(b, "col1")["cardIds"][-1]
     assert b["cards"][new_id]["title"] == "Newest"
 
 
 def test_create_card_top(seeded_client):
     b = board_of(
-        seeded_client.post("/api/columns/col1/cards", json={"title": "Top", "position": "top"})
+        seeded_client.post(
+            "/api/columns/col1/cards", json={"title": "Top", "position": "top"}
+        )
     )
     top_id = column(b, "col1")["cardIds"][0]
     assert b["cards"][top_id]["title"] == "Top"
 
 
 def test_create_card_bad_position_422(seeded_client):
-    r = seeded_client.post("/api/columns/col1/cards", json={"title": "X", "position": "middle"})
+    r = seeded_client.post(
+        "/api/columns/col1/cards", json={"title": "X", "position": "middle"}
+    )
     assert r.status_code == 422
 
 
 def test_patch_card_text(seeded_client):
-    b = board_of(seeded_client.patch("/api/cards/c1", json={"title": "T2", "description": "D2"}))
+    b = board_of(
+        seeded_client.patch("/api/cards/c1", json={"title": "T2", "description": "D2"})
+    )
     assert b["cards"]["c1"]["title"] == "T2" and b["cards"]["c1"]["description"] == "D2"
 
 
 def test_move_card(seeded_client):
     b = board_of(
-        seeded_client.post("/api/cards/c1/move", json={"toColumnId": "col2", "beforeCardId": "c5"})
+        seeded_client.post(
+            "/api/cards/c1/move", json={"toColumnId": "col2", "beforeCardId": "c5"}
+        )
     )
     assert column(b, "col2")["cardIds"] == ["c4", "c1", "c5"]
 
 
 def test_move_card_unknown_target_404(seeded_client):
-    assert seeded_client.post("/api/cards/c1/move", json={"toColumnId": "nope"}).status_code == 404
+    assert (
+        seeded_client.post(
+            "/api/cards/c1/move", json={"toColumnId": "nope"}
+        ).status_code
+        == 404
+    )
 
 
 def test_move_archived_card_422(seeded_client):
@@ -110,13 +134,16 @@ def test_delete_card(seeded_client):
 
 
 def test_card_endpoints_404_on_unknown_id(seeded_client):
-    assert seeded_client.patch("/api/cards/nope", json={"title": "X"}).status_code == 404
+    assert (
+        seeded_client.patch("/api/cards/nope", json={"title": "X"}).status_code == 404
+    )
     assert seeded_client.post("/api/cards/nope/archive").status_code == 404
     assert seeded_client.post("/api/cards/nope/restore").status_code == 404
     assert seeded_client.delete("/api/cards/nope").status_code == 404
 
 
 # --- card labels / checklist ------------------------------------------------------------
+
 
 def test_toggle_label_endpoints(seeded_client):
     b = board_of(seeded_client.put("/api/cards/c3/labels/l2"))
@@ -136,7 +163,9 @@ def test_checklist_crud_over_http(seeded_client):
     assert item["text"] == "step" and item["done"] is False
 
     b = board_of(
-        seeded_client.patch(f"/api/cards/c3/checklist/{item['id']}", json={"done": True})
+        seeded_client.patch(
+            f"/api/cards/c3/checklist/{item['id']}", json={"done": True}
+        )
     )
     assert b["cards"]["c3"]["checklist"][0]["done"] is True
 
@@ -147,10 +176,16 @@ def test_checklist_crud_over_http(seeded_client):
 def test_checklist_item_of_other_card_404(seeded_client):
     b = seeded_client.get("/api/board").json()
     item_id = b["cards"]["c4"]["checklist"][0]["id"]
-    assert seeded_client.patch(f"/api/cards/c1/checklist/{item_id}", json={"done": True}).status_code == 404
+    assert (
+        seeded_client.patch(
+            f"/api/cards/c1/checklist/{item_id}", json={"done": True}
+        ).status_code
+        == 404
+    )
 
 
 # --- labels ------------------------------------------------------------------------------
+
 
 def test_create_label_with_defaults(seeded_client):
     b = board_of(seeded_client.post("/api/labels", json={}))
@@ -165,7 +200,9 @@ def test_create_label_with_name(seeded_client):
 
 def test_patch_label_colors(seeded_client):
     b = board_of(
-        seeded_client.patch("/api/labels/l1", json={"bg": "#111111", "fg": "#EEEEEE", "dot": "#ABCDEF"})
+        seeded_client.patch(
+            "/api/labels/l1", json={"bg": "#111111", "fg": "#EEEEEE", "dot": "#ABCDEF"}
+        )
     )
     lb = next(x for x in b["labels"] if x["id"] == "l1")
     assert (lb["bg"], lb["fg"], lb["dot"]) == ("#111111", "#EEEEEE", "#ABCDEF")
@@ -178,8 +215,13 @@ def test_delete_label_cascades(seeded_client):
 
 
 def test_unknown_body_keys_rejected(seeded_client):
-    assert seeded_client.post("/api/columns", json={"title": "X", "nope": 1}).status_code == 422
-    assert seeded_client.patch("/api/cards/c1", json={"archived": True}).status_code == 422
+    assert (
+        seeded_client.post("/api/columns", json={"title": "X", "nope": 1}).status_code
+        == 422
+    )
+    assert (
+        seeded_client.patch("/api/cards/c1", json={"archived": True}).status_code == 422
+    )
 
 
 def test_mutations_survive_restart(settings):
@@ -197,8 +239,11 @@ def test_mutations_survive_restart(settings):
 
 # --- board subtitle -----------------------------------------------------------------
 
+
 def test_patch_board_subtitle(seeded_client):
-    b = board_of(seeded_client.patch("/api/board", json={"subtitle": "Platform · Sprint 25"}))
+    b = board_of(
+        seeded_client.patch("/api/board", json={"subtitle": "Platform · Sprint 25"})
+    )
     assert b["subtitle"] == "Platform · Sprint 25"
     assert seeded_client.get("/api/board").json()["subtitle"] == "Platform · Sprint 25"
 

@@ -5,7 +5,14 @@ from tiny_kanban.config import Settings
 from tiny_kanban.db import make_engine
 from tiny_kanban.main import run_migrations
 
-EXPECTED_TABLES = {"columns", "cards", "labels", "card_labels", "checklist_items", "meta"}
+EXPECTED_TABLES = {
+    "columns",
+    "cards",
+    "labels",
+    "card_labels",
+    "checklist_items",
+    "meta",
+}
 
 
 @pytest.fixture

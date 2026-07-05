@@ -50,6 +50,7 @@ def client(settings: Settings) -> Iterator[TestClient]:
 
 # --- payload builders -------------------------------------------------------
 
+
 def make_label(id: str = "l1", name: str = "Bug") -> dict:
     return {"id": id, "name": name, "bg": "#4A2620", "fg": "#E06A54", "dot": "#E0553C"}
 
@@ -67,7 +68,9 @@ def make_card(id: str = "c1", title: str = "A card", **overrides) -> dict:
     return card
 
 
-def make_board(columns=None, cards=None, labels=None, subtitle="Product · Sprint 24") -> dict:
+def make_board(
+    columns=None, cards=None, labels=None, subtitle="Product · Sprint 24"
+) -> dict:
     return {
         "subtitle": subtitle,
         "columns": columns or [],

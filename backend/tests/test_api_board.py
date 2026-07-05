@@ -16,10 +16,14 @@ def test_health(client):
 
 # --- seeding ----------------------------------------------------------------
 
+
 def test_first_get_returns_seeded_demo_board(client):
     board = client.get("/api/board").json()
     assert [c["title"] for c in board["columns"]] == [
-        "To Do", "Blocked", "Pending Validation", "Done",
+        "To Do",
+        "Blocked",
+        "Pending Validation",
+        "Done",
     ]
     assert len(board["cards"]) == 9
     assert len(board["labels"]) == 6
@@ -49,14 +53,24 @@ def test_put_before_first_get_prevents_seeding(client):
 ARCHIVED_BOARD = make_board(
     columns=[{"id": "col1", "title": "Only", "cardIds": ["c2"]}],
     cards={
-        "c1": make_card("c1", "Archived one", archived=True, archivedFrom="col1", archivedAt=1700000000000),
+        "c1": make_card(
+            "c1",
+            "Archived one",
+            archived=True,
+            archivedFrom="col1",
+            archivedAt=1700000000000,
+        ),
         "c2": make_card("c2", "On board"),
     },
 )
 
 UNICODE_BOARD = make_board(
     columns=[{"id": "col1", "title": "À faire 📋", "cardIds": ["c1"]}],
-    cards={"c1": make_card("c1", "Café ☕ — «tâche n°1»", description="emoji 🎉 and\nnewlines")},
+    cards={
+        "c1": make_card(
+            "c1", "Café ☕ — «tâche n°1»", description="emoji 🎉 and\nnewlines"
+        )
+    },
     labels=[make_label("l1", "Priorité")],
 )
 
@@ -114,6 +128,7 @@ def test_data_survives_app_restart(settings):
 
 # --- ordering ---------------------------------------------------------------
 
+
 def test_card_order_within_column_preserved(client):
     ids = [f"c{i}" for i in range(10)]
     board = make_board(
@@ -121,7 +136,9 @@ def test_card_order_within_column_preserved(client):
         cards={i: make_card(i) for i in ids},
     )
     put_ok(client, board)
-    assert client.get("/api/board").json()["columns"][0]["cardIds"] == list(reversed(ids))
+    assert client.get("/api/board").json()["columns"][0]["cardIds"] == list(
+        reversed(ids)
+    )
 
 
 def test_column_order_preserved(client):
@@ -129,13 +146,21 @@ def test_column_order_preserved(client):
         columns=[{"id": f"col{i}", "title": f"T{i}", "cardIds": []} for i in (3, 1, 2)]
     )
     put_ok(client, board)
-    assert [c["id"] for c in client.get("/api/board").json()["columns"]] == ["col3", "col1", "col2"]
+    assert [c["id"] for c in client.get("/api/board").json()["columns"]] == [
+        "col3",
+        "col1",
+        "col2",
+    ]
 
 
 def test_label_order_on_board_preserved(client):
     board = make_board(labels=[make_label(f"l{i}", f"L{i}") for i in (2, 3, 1)])
     put_ok(client, board)
-    assert [lb["id"] for lb in client.get("/api/board").json()["labels"]] == ["l2", "l3", "l1"]
+    assert [lb["id"] for lb in client.get("/api/board").json()["labels"]] == [
+        "l2",
+        "l3",
+        "l1",
+    ]
 
 
 def test_label_order_on_card_preserved(client):
@@ -144,17 +169,24 @@ def test_label_order_on_card_preserved(client):
         labels=[make_label(f"l{i}", f"L{i}") for i in (1, 2, 3)],
     )
     put_ok(client, board)
-    assert client.get("/api/board").json()["cards"]["c1"]["labels"] == ["l3", "l1", "l2"]
+    assert client.get("/api/board").json()["cards"]["c1"]["labels"] == [
+        "l3",
+        "l1",
+        "l2",
+    ]
 
 
 def test_checklist_order_preserved(client):
-    checklist = [{"id": f"ck{i}", "text": f"item {i}", "done": i % 2 == 0} for i in (5, 2, 9, 1)]
+    checklist = [
+        {"id": f"ck{i}", "text": f"item {i}", "done": i % 2 == 0} for i in (5, 2, 9, 1)
+    ]
     board = make_board(cards={"c1": make_card(checklist=checklist)})
     put_ok(client, board)
     assert client.get("/api/board").json()["cards"]["c1"]["checklist"] == checklist
 
 
 # --- replace semantics ------------------------------------------------------
+
 
 def test_second_put_removes_stale_rows(client):
     put_ok(client, simple_board())
@@ -181,6 +213,7 @@ def test_removing_checklist_items_does_not_leak(client):
 
 # --- validation over HTTP ---------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -197,7 +230,9 @@ def test_structurally_invalid_payloads_rejected(client, payload):
 
 
 def test_malformed_json_rejected(client):
-    r = client.put("/api/board", content=b"not json", headers={"Content-Type": "application/json"})
+    r = client.put(
+        "/api/board", content=b"not json", headers={"Content-Type": "application/json"}
+    )
     assert r.status_code == 422
 
 

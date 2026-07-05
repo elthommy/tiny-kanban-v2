@@ -27,6 +27,7 @@ def column_cards(session, column_id: str) -> list[str]:
 
 # --- columns -------------------------------------------------------------------
 
+
 def test_add_column_appends_at_end(seeded):
     new_id = service.add_column(seeded, "Later")
     cols = board(seeded).columns
@@ -65,6 +66,7 @@ def test_archive_all_empties_column_but_keeps_it(seeded):
 
 
 # --- cards ------------------------------------------------------------------------
+
 
 def test_add_card_bottom_and_top(seeded):
     bottom = service.add_card(seeded, "col1", "Last", "bottom")
@@ -189,6 +191,7 @@ def test_delete_card_removes_everywhere(seeded):
 
 # --- card labels ---------------------------------------------------------------------
 
+
 def test_add_and_remove_card_label(seeded):
     service.add_card_label(seeded, "c3", "l2")
     assert board(seeded).cards["c3"].labels == ["l2"]
@@ -215,6 +218,7 @@ def test_card_label_unknown_ids_404(seeded):
 
 
 # --- checklist --------------------------------------------------------------------------
+
 
 def test_add_checklist_item_appends(seeded):
     item_id = service.add_checklist_item(seeded, "c4", "Ship the fix")
@@ -245,14 +249,23 @@ def test_checklist_item_must_belong_to_card(seeded):
 
 # --- labels ---------------------------------------------------------------------------------
 
+
 def test_add_label_defaults_cycle_palette(seeded):
     # seed has 6 labels; the next two take palette entries 6 and 7
     id7 = service.add_label(seeded)
     id8 = service.add_label(seeded)
     labels = {lb.id: lb for lb in board(seeded).labels}
     assert labels[id7].name == "New label"
-    assert {"bg": labels[id7].bg, "fg": labels[id7].fg, "dot": labels[id7].dot} == PALETTE[6]
-    assert {"bg": labels[id8].bg, "fg": labels[id8].fg, "dot": labels[id8].dot} == PALETTE[7]
+    assert {
+        "bg": labels[id7].bg,
+        "fg": labels[id7].fg,
+        "dot": labels[id7].dot,
+    } == PALETTE[6]
+    assert {
+        "bg": labels[id8].bg,
+        "fg": labels[id8].fg,
+        "dot": labels[id8].dot,
+    } == PALETTE[7]
 
 
 def test_update_label_partial(seeded):
@@ -272,6 +285,7 @@ def test_delete_label_strips_it_from_cards(seeded):
 
 
 # --- queries ------------------------------------------------------------------------------------
+
 
 def test_search_cards_by_text(seeded):
     hits = service.search_cards(seeded, query="stripe")
@@ -317,6 +331,7 @@ def test_get_card_detail_unknown_404(seeded):
 
 # --- id-or-name resolvers (used by MCP write tools) -------------------------------
 
+
 def test_resolve_column_by_id_and_name(seeded):
     assert service.resolve_column_id(seeded, "col2") == "col2"
     assert service.resolve_column_id(seeded, "blocked") == "col2"
@@ -360,6 +375,7 @@ def test_add_card_with_description(seeded):
 
 
 # --- board subtitle ----------------------------------------------------------------
+
 
 def test_subtitle_defaults_on_fresh_db(session):
     assert service.get_subtitle(session) == service.DEFAULT_SUBTITLE

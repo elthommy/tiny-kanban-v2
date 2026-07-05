@@ -38,7 +38,9 @@ def build_mcp(settings: Settings) -> FastMCP:
         # The REST API beside this mount has no Host validation either — the app
         # is a local, unauthenticated, single-user tool. Keeping the MCP check on
         # would only break non-localhost binds (KANBAN_HOST=0.0.0.0) and tests.
-        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=False
+        ),
     )
 
     @mcp.tool()
@@ -131,11 +133,15 @@ def build_mcp(settings: Settings) -> FastMCP:
     ) -> dict:
         """Change a card's title and/or description; omitted fields are kept."""
         with session_factory() as session:
-            service.update_card_text(session, card_id, title=title, description=description)
+            service.update_card_text(
+                session, card_id, title=title, description=description
+            )
             return service.get_card_detail(session, card_id)
 
     @mcp.tool()
-    def move_card(card_id: str, to_column: str, before_card_id: str | None = None) -> dict:
+    def move_card(
+        card_id: str, to_column: str, before_card_id: str | None = None
+    ) -> dict:
         """Move a card into a column, before the given card (or to the end)."""
         with session_factory() as session:
             column_id = service.resolve_column_id(session, to_column)
@@ -192,7 +198,9 @@ def build_mcp(settings: Settings) -> FastMCP:
     ) -> dict:
         """Check/uncheck a checklist item and/or rewrite its text."""
         with session_factory() as session:
-            service.update_checklist_item(session, card_id, item_id, done=done, text=text)
+            service.update_checklist_item(
+                session, card_id, item_id, done=done, text=text
+            )
             return service.get_card_detail(session, card_id)
 
     @mcp.tool()

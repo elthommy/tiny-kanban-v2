@@ -2,7 +2,13 @@
 
 from itertools import count
 
-from .schemas import BoardData, CardSchema, ChecklistItemSchema, ColumnSchema, LabelSchema
+from .schemas import (
+    BoardData,
+    CardSchema,
+    ChecklistItemSchema,
+    ColumnSchema,
+    LabelSchema,
+)
 
 _ck_counter = count(1)
 
@@ -39,7 +45,9 @@ def seed_board() -> BoardData:
         LabelSchema(id="l1", name="Design", bg="#33265A", fg="#C9B0F0", dot="#8B5CF6"),
         LabelSchema(id="l2", name="Bug", bg="#4A2620", fg="#E06A54", dot="#E0553C"),
         LabelSchema(id="l3", name="Feature", bg="#1F3A57", fg="#9CC6F0", dot="#3E88C7"),
-        LabelSchema(id="l4", name="Research", bg="#4A3B18", fg="#E8CF8F", dot="#D9A521"),
+        LabelSchema(
+            id="l4", name="Research", bg="#4A3B18", fg="#E8CF8F", dot="#D9A521"
+        ),
         LabelSchema(id="l5", name="Backend", bg="#1D4238", fg="#93D9BE", dot="#2E9E78"),
         LabelSchema(id="l6", name="Urgent", bg="#4A2038", fg="#F0A6C9", dot="#D63B82"),
     ]
@@ -48,7 +56,11 @@ def seed_board() -> BoardData:
             "c1",
             "Redesign onboarding flow",
             ["l1", "l3"],
-            [_ck("Audit current screens", True), _ck("Wireframe v2"), _ck("Usability test with 5 users")],
+            [
+                _ck("Audit current screens", True),
+                _ck("Wireframe v2"),
+                _ck("Usability test with 5 users"),
+            ],
             "Cut drop-off in the first session by simplifying signup.",
         ),
         _card(
@@ -65,14 +77,28 @@ def seed_board() -> BoardData:
             [_ck("Reproduce locally", True), _ck("Add retry with backoff")],
             "Stripe events arriving after 30s cause missed orders.",
         ),
-        _card("c5", "Legal review of updated ToS", description="Waiting on external counsel — expected end of week."),
+        _card(
+            "c5",
+            "Legal review of updated ToS",
+            description="Waiting on external counsel — expected end of week.",
+        ),
         _card(
             "c6",
             "Dark mode visual QA",
             ["l3"],
-            [_ck("Cards", True), _ck("Modals", True), _ck("Charts", True), _ck("Print styles")],
+            [
+                _ck("Cards", True),
+                _ck("Modals", True),
+                _ck("Charts", True),
+                _ck("Print styles"),
+            ],
         ),
-        _card("c7", "API rate limiting", ["l5"], [_ck("Design token bucket"), _ck("Add response headers")]),
+        _card(
+            "c7",
+            "API rate limiting",
+            ["l5"],
+            [_ck("Design token bucket"), _ck("Add response headers")],
+        ),
         _card("c8", "Ship v2.3 release", ["l3"]),
         _card("c9", "Migrate assets to new CDN", ["l5"]),
     ]

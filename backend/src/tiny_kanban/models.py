@@ -33,7 +33,9 @@ class Card(Base):
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Column the card was archived from (kept even if that column is later deleted)
     archived_from: Mapped[str | None] = mapped_column(String, nullable=True)
-    archived_at: Mapped[int | None] = mapped_column(Integer, nullable=True)  # ms epoch, matches JS Date.now()
+    archived_at: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # ms epoch, matches JS Date.now()
     # NULL for archived/orphan cards
     column_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("columns.id", ondelete="CASCADE"), nullable=True

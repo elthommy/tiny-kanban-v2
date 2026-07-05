@@ -13,7 +13,13 @@ from sqlalchemy.orm import Session
 
 from . import models
 from .config import PALETTE
-from .schemas import BoardData, CardSchema, ChecklistItemSchema, ColumnSchema, LabelSchema
+from .schemas import (
+    BoardData,
+    CardSchema,
+    ChecklistItemSchema,
+    ColumnSchema,
+    LabelSchema,
+)
 
 
 INITIALIZED_KEY = "initialized"
@@ -83,9 +89,7 @@ def get_board(session: Session) -> BoardData:
         select(models.BoardColumn).order_by(models.BoardColumn.position)
     ).all()
     cards = session.scalars(select(models.Card)).all()
-    labels = session.scalars(
-        select(models.Label).order_by(models.Label.position)
-    ).all()
+    labels = session.scalars(select(models.Label).order_by(models.Label.position)).all()
 
     card_labels: dict[str, list[str]] = {}
     for cl in session.scalars(
@@ -173,11 +177,15 @@ def validate_board(board: BoardData) -> None:
                 )
         checklist_ids = {item.id for item in card.checklist}
         if len(checklist_ids) != len(card.checklist):
-            raise BoardValidationError(f"duplicate checklist item id on card {card.id!r}")
+            raise BoardValidationError(
+                f"duplicate checklist item id on card {card.id!r}"
+            )
 
     for key, card in board.cards.items():
         if key != card.id:
-            raise BoardValidationError(f"cards key {key!r} does not match card id {card.id!r}")
+            raise BoardValidationError(
+                f"cards key {key!r} does not match card id {card.id!r}"
+            )
 
 
 def replace_board(session: Session, board: BoardData) -> None:
@@ -241,6 +249,7 @@ def replace_board(session: Session, board: BoardData) -> None:
 
 # --- entity lookups ----------------------------------------------------------
 
+
 def _column(session: Session, column_id: str) -> models.BoardColumn:
     col = session.get(models.BoardColumn, column_id)
     if col is None:
@@ -267,7 +276,8 @@ def resolve_column_id(session: Session, ref: str) -> str:
     if session.get(models.BoardColumn, ref) is not None:
         return ref
     matches = [
-        c for c in session.scalars(select(models.BoardColumn))
+        c
+        for c in session.scalars(select(models.BoardColumn))
         if c.title.lower() == ref.lower()
     ]
     if len(matches) > 1:
@@ -282,7 +292,9 @@ def resolve_label_id(session: Session, ref: str) -> str:
     if session.get(models.Label, ref) is not None:
         return ref
     matches = [
-        lb for lb in session.scalars(select(models.Label)) if lb.name.lower() == ref.lower()
+        lb
+        for lb in session.scalars(select(models.Label))
+        if lb.name.lower() == ref.lower()
     ]
     if len(matches) > 1:
         raise BoardValidationError(f"label name {ref!r} is ambiguous, use its id")
@@ -319,6 +331,7 @@ def _archive_card_row(session: Session, card: models.Card) -> None:
 
 # --- column mutations ---------------------------------------------------------
 
+
 def add_column(session: Session, title: str) -> str:
     max_pos = max(
         (c.position for c in session.scalars(select(models.BoardColumn))), default=-1
@@ -352,6 +365,7 @@ def archive_all(session: Session, column_id: str) -> None:
 
 # --- card mutations -----------------------------------------------------------
 
+
 def add_card(
     session: Session,
     column_id: str,
@@ -371,7 +385,10 @@ def add_card(
 
 
 def update_card_text(
-    session: Session, card_id: str, title: str | None = None, description: str | None = None
+    session: Session,
+    card_id: str,
+    title: str | None = None,
+    description: str | None = None,
 ) -> None:
     card = _card(session, card_id)
     if title is not None:
@@ -395,9 +412,13 @@ def move_card(
 
     target = [c for c in _column_cards(session, to_column_id) if c.id != card_id]
     if card.column_id is not None and card.column_id != to_column_id:
-        _place_cards([c for c in _column_cards(session, card.column_id) if c.id != card_id],
-                     card.column_id)
-    index = next((i for i, c in enumerate(target) if c.id == before_card_id), len(target))
+        _place_cards(
+            [c for c in _column_cards(session, card.column_id) if c.id != card_id],
+            card.column_id,
+        )
+    index = next(
+        (i for i, c in enumerate(target) if c.id == before_card_id), len(target)
+    )
     target.insert(index, card)
     _place_cards(target, to_column_id)
     _finalize(session)
@@ -441,6 +462,7 @@ def delete_card(session: Session, card_id: str) -> None:
 
 # --- card labels ---------------------------------------------------------------
 
+
 def add_card_label(session: Session, card_id: str, label_id: str) -> None:
     _card(session, card_id)
     _label(session, label_id)
@@ -450,7 +472,9 @@ def add_card_label(session: Session, card_id: str, label_id: str) -> None:
         select(models.CardLabel).where(models.CardLabel.card_id == card_id)
     ).all()
     max_pos = max((cl.position for cl in existing), default=-1)
-    session.add(models.CardLabel(card_id=card_id, label_id=label_id, position=max_pos + 1))
+    session.add(
+        models.CardLabel(card_id=card_id, label_id=label_id, position=max_pos + 1)
+    )
     _finalize(session)
 
 
@@ -465,6 +489,7 @@ def remove_card_label(session: Session, card_id: str, label_id: str) -> None:
 
 
 # --- checklist ------------------------------------------------------------------
+
 
 def add_checklist_item(session: Session, card_id: str, text: str) -> str:
     _card(session, card_id)
@@ -482,7 +507,9 @@ def add_checklist_item(session: Session, card_id: str, text: str) -> str:
     return item_id
 
 
-def _checklist_item(session: Session, card_id: str, item_id: str) -> models.ChecklistItem:
+def _checklist_item(
+    session: Session, card_id: str, item_id: str
+) -> models.ChecklistItem:
     item = session.get(models.ChecklistItem, item_id)
     if item is None or item.card_id != card_id:
         raise NotFoundError(f"unknown checklist item {item_id!r} on card {card_id!r}")
@@ -511,7 +538,10 @@ def delete_checklist_item(session: Session, card_id: str, item_id: str) -> None:
 
 # --- labels ----------------------------------------------------------------------
 
-def add_label(session: Session, name: str | None = None, colors: dict[str, str] | None = None) -> str:
+
+def add_label(
+    session: Session, name: str | None = None, colors: dict[str, str] | None = None
+) -> str:
     """New label; colors default to the next palette entry (same rule the UI had)."""
     labels = session.scalars(select(models.Label)).all()
     if colors is None:
@@ -558,6 +588,7 @@ def delete_label(session: Session, label_id: str) -> None:
 
 
 # --- read queries (REST + MCP) -----------------------------------------------------
+
 
 def card_summary(session: Session, card: models.Card) -> dict:
     """Compact card view for listings and MCP tools."""
@@ -614,8 +645,14 @@ def search_cards(
         if archived is not None and card.archived != archived:
             continue
         if column is not None:
-            col = session.get(models.BoardColumn, card.column_id) if card.column_id else None
-            if col is None or (column != col.id and column.lower() != col.title.lower()):
+            col = (
+                session.get(models.BoardColumn, card.column_id)
+                if card.column_id
+                else None
+            )
+            if col is None or (
+                column != col.id and column.lower() != col.title.lower()
+            ):
                 continue
         if label is not None:
             label_ids = {
@@ -629,7 +666,9 @@ def search_cards(
                 continue
         if query is not None:
             q = query.lower()
-            haystack = f"{card.title}\n{card.description}\n" + "\n".join(summary["labels"])
+            haystack = f"{card.title}\n{card.description}\n" + "\n".join(
+                summary["labels"]
+            )
             if q not in haystack.lower():
                 continue
         results.append(summary)

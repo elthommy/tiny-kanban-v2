@@ -45,7 +45,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(status_code=404, content={"detail": str(exc)})
 
     @app.exception_handler(BoardValidationError)
-    async def invalid_board(_request: Request, exc: BoardValidationError) -> JSONResponse:
+    async def invalid_board(
+        _request: Request, exc: BoardValidationError
+    ) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
     engine = make_engine(settings)
@@ -66,7 +68,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Serve the built frontend when available; API-only mode otherwise (dev uses Vite)
     if (settings.static_dir / "index.html").is_file():
-        app.mount("/", StaticFiles(directory=settings.static_dir, html=True), name="static")
+        app.mount(
+            "/", StaticFiles(directory=settings.static_dir, html=True), name="static"
+        )
 
     return app
 

@@ -55,6 +55,7 @@ def test_orphan_card_survives_round_trip(session):
 
 # --- validation -------------------------------------------------------------
 
+
 def test_unknown_card_in_column_rejected():
     board = make_board(columns=[{"id": "col1", "title": "T", "cardIds": ["ghost"]}])
     with pytest.raises(BoardValidationError, match="unknown card"):

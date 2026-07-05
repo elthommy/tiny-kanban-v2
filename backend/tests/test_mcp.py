@@ -56,17 +56,32 @@ def test_no_redirect_on_bare_mcp_path(client):
         headers=MCP_HEADERS,
         follow_redirects=False,
     )
-    assert r.status_code == 200  # a 307 here breaks MCP clients that don't follow redirects
+    assert (
+        r.status_code == 200
+    )  # a 307 here breaks MCP clients that don't follow redirects
 
 
 READ_TOOLS = {"get_board", "list_cards", "get_card"}
 WRITE_TOOLS = {
     "set_board_subtitle",
-    "add_column", "rename_column", "delete_column", "archive_all_cards",
-    "add_card", "update_card", "move_card", "archive_card", "restore_card", "delete_card",
-    "add_card_label", "remove_card_label",
-    "add_checklist_item", "update_checklist_item", "delete_checklist_item",
-    "create_label", "rename_label", "delete_label",
+    "add_column",
+    "rename_column",
+    "delete_column",
+    "archive_all_cards",
+    "add_card",
+    "update_card",
+    "move_card",
+    "archive_card",
+    "restore_card",
+    "delete_card",
+    "add_card_label",
+    "remove_card_label",
+    "add_checklist_item",
+    "update_checklist_item",
+    "delete_checklist_item",
+    "create_label",
+    "rename_label",
+    "delete_label",
 }
 
 
@@ -83,7 +98,9 @@ def test_get_board_tool(seeded_client):
 
 
 def test_list_cards_with_filters(seeded_client):
-    result = call_tool(seeded_client, "list_cards", {"label": "Backend", "column": "Blocked"})
+    result = call_tool(
+        seeded_client, "list_cards", {"label": "Backend", "column": "Blocked"}
+    )
     cards = result["structuredContent"]["result"]
     assert [c["title"] for c in cards] == ["Payment webhook timing out"]
 
@@ -101,7 +118,11 @@ def test_get_card_tool(seeded_client):
 
 
 def test_get_card_unknown_id_reports_tool_error(seeded_client):
-    body = rpc(seeded_client, "tools/call", {"name": "get_card", "arguments": {"card_id": "nope"}})
+    body = rpc(
+        seeded_client,
+        "tools/call",
+        {"name": "get_card", "arguments": {"card_id": "nope"}},
+    )
     assert body["result"]["isError"] is True
 
 

@@ -56,6 +56,7 @@ class BoardData(Schema):
 
 # --- mutation request bodies (Phase 2 per-resource API) ----------------------
 
+
 class BoardPatch(Schema):
     subtitle: str
 
