@@ -9,7 +9,7 @@ license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
+    "uvicorn[standard]>=0.50.0",
     "sqlalchemy>=2.0",
     "alembic>=1.14",
     "pydantic-settings>=2.7",
