@@ -46,8 +46,12 @@ live in `frontend/src/config.ts`.
 ## Tests
 
 ```bash
-cd backend && uv run pytest    # the thorough suite
-cd frontend && npm test        # minimal API-client tests
+pushd backend
+  uv run pytest -v    # the thorough suite
+popd
+pushd frontend
+  npm test        # minimal API-client tests
+popd
 ```
 
 Architecture, data model, and contribution guide (for humans and LLM agents):
