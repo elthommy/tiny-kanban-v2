@@ -57,6 +57,38 @@ def test_delete_column_archives_its_cards(seeded):
         assert card.archivedAt is not None
 
 
+def test_move_column_before_anchor(seeded):
+    # board starts as [col1, col2, col3, col4]
+    service.move_column(seeded, "col4", "col2")
+    assert [c.id for c in board(seeded).columns] == ["col1", "col4", "col2", "col3"]
+
+
+def test_move_column_append_when_no_anchor(seeded):
+    service.move_column(seeded, "col1", None)
+    assert [c.id for c in board(seeded).columns] == ["col2", "col3", "col4", "col1"]
+
+
+def test_move_column_unknown_anchor_appends(seeded):
+    service.move_column(seeded, "col1", "ghost")
+    assert [c.id for c in board(seeded).columns] == ["col2", "col3", "col4", "col1"]
+
+
+def test_move_column_onto_itself_is_noop(seeded):
+    before = [c.id for c in board(seeded).columns]
+    service.move_column(seeded, "col2", "col2")
+    assert [c.id for c in board(seeded).columns] == before
+
+
+def test_move_column_keeps_its_cards(seeded):
+    service.move_column(seeded, "col1", None)
+    assert column_cards(seeded, "col1") == ["c1", "c2", "c3"]
+
+
+def test_move_unknown_column_404(seeded):
+    with pytest.raises(NotFoundError):
+        service.move_column(seeded, "nope", None)
+
+
 def test_archive_all_empties_column_but_keeps_it(seeded):
     service.archive_all(seeded, "col2")
     b = board(seeded)
@@ -92,6 +124,41 @@ def test_update_card_text_partial(seeded):
     service.update_card_text(seeded, "c1", description="New desc")
     card = board(seeded).cards["c1"]
     assert card.title == "New title" and card.description == "New desc"
+
+
+def test_set_and_clear_card_due_date(seeded):
+    service.set_card_due_date(seeded, "c2", "2026-08-15")
+    assert board(seeded).cards["c2"].dueDate == "2026-08-15"
+    service.set_card_due_date(seeded, "c2", None)
+    assert board(seeded).cards["c2"].dueDate is None
+
+
+def test_set_card_due_date_invalid_format_rejected(seeded):
+    with pytest.raises(BoardValidationError):
+        service.set_card_due_date(seeded, "c2", "next tuesday")
+    with pytest.raises(BoardValidationError):
+        service.set_card_due_date(seeded, "c2", "2026-13-40")
+
+
+def test_set_due_date_unknown_card_404(seeded):
+    with pytest.raises(NotFoundError):
+        service.set_card_due_date(seeded, "nope", "2026-08-15")
+
+
+def test_replace_board_round_trips_due_date(session):
+    payload = simple_board()
+    payload["cards"]["c1"]["dueDate"] = "2026-08-15"
+    service.replace_board(session, BoardData.model_validate(payload))
+    b = board(session)
+    assert b.cards["c1"].dueDate == "2026-08-15"
+    assert b.cards["c2"].dueDate is None
+
+
+def test_replace_board_invalid_due_date_rejected(session):
+    payload = simple_board()
+    payload["cards"]["c1"]["dueDate"] = "someday"
+    with pytest.raises(BoardValidationError):
+        service.replace_board(session, BoardData.model_validate(payload))
 
 
 def test_move_card_before_anchor_same_column(seeded):
@@ -322,6 +389,7 @@ def test_card_summary_shape(seeded):
     assert detail["labels"] == ["Bug", "Backend", "Urgent"]
     assert detail["checklist_done"] == 1 and detail["checklist_total"] == 2
     assert [it["done"] for it in detail["checklist"]] == [True, False]
+    assert detail["due_date"] == seed_board().cards["c4"].dueDate
 
 
 def test_get_card_detail_unknown_404(seeded):

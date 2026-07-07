@@ -182,6 +182,17 @@ textarea {
   align-items: center;
   gap: 4px;
   padding: 2px 4px 8px;
+  cursor: grab;
+}
+.column.drag-src {
+  opacity: 0.45;
+}
+.col-drop-indicator {
+  flex: 0 0 3px;
+  align-self: stretch;
+  background: #d06b49;
+  border-radius: 2px;
+  margin: 0 -8px;
 }
 .col-title {
   flex: 1;
@@ -310,6 +321,29 @@ textarea {
   line-height: 1.4;
   color: #eceaf2;
   font-weight: 500;
+}
+.due-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #211f26;
+  color: #8b8698;
+}
+.due-badge.soon {
+  background: #42291f;
+  color: #d06b49;
+}
+.due-badge.overdue {
+  background: #4a2620;
+  color: #e06a54;
+}
+.due-flag {
+  font-size: 10px;
 }
 .progress-row {
   margin-top: 10px;
@@ -681,6 +715,39 @@ textarea {
   border-color: #d06b49;
   color: #d06b49;
 }
+.due-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.due-input {
+  border: 1px solid #35323c;
+  background: #2a282f;
+  border-radius: 10px;
+  padding: 8px 11px;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: #eceaf2;
+  color-scheme: dark; /* dark native calendar popup */
+}
+.due-input:focus {
+  border-color: #d06b49;
+}
+.due-clear {
+  border: none;
+  background: transparent;
+  color: #6e6a78;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.due-clear:hover {
+  color: #e06a54;
+  background: #3a2420;
+}
 .desc-input {
   width: 100%;
   border: 1px solid #35323c;
@@ -732,12 +799,17 @@ textarea {
   cursor: pointer;
   flex: 0 0 auto;
 }
-.check-text {
+.check-text-input {
   flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
   font-size: 13.5px;
   color: #eceaf2;
+  padding: 0;
 }
-.check-text.done {
+.check-text-input.done {
   color: #6e6a78;
   text-decoration: line-through;
 }

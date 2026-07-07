@@ -50,10 +50,14 @@ function KanbanApp({ initial }: { initial: BoardData }) {
   const [menuColId, setMenuColId] = useState<string | null>(null)
   const [dragging, setDragging] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<{ col: string | null; card: string | null }>({ col: null, card: null })
+  const [draggingCol, setDraggingCol] = useState<string | null>(null)
+  // Column-drag target: null = no target yet, { before: null } = drop at the end
+  const [colDrop, setColDrop] = useState<{ before: string | null } | null>(null)
   const [labelEditorOpen, setLabelEditorOpen] = useState(false)
   const [colorPickerLabel, setColorPickerLabel] = useState<string | null>(null)
   const [archiveQuery, setArchiveQuery] = useState('')
   const dragCardId = useRef<string | null>(null)
+  const dragColId = useRef<string | null>(null)
 
   /** Run a structural mutation and adopt the server's board. */
   const apply = (mutation: Promise<BoardData>) => {
@@ -78,8 +82,11 @@ function KanbanApp({ initial }: { initial: BoardData }) {
 
   const clearDrag = () => {
     dragCardId.current = null
+    dragColId.current = null
     setDragging(null)
     setDragOver({ col: null, card: null })
+    setDraggingCol(null)
+    setColDrop(null)
   }
 
   const boardActions: BoardActions = {
@@ -120,20 +127,57 @@ function KanbanApp({ initial }: { initial: BoardData }) {
     },
     cardDragEnd: clearDrag,
     cardDragOver: (e, colId, cardId) => {
+      if (dragColId.current) return // let the event bubble to the column handler
       e.preventDefault()
       e.stopPropagation()
       setDragOver((cur) => (cur.col === colId && cur.card === cardId ? cur : { col: colId, card: cardId }))
     },
     columnDragOver: (e, colId) => {
       e.preventDefault()
+      if (dragColId.current) {
+        // Column drag: left half targets before this column, right half after it
+        const rect = e.currentTarget.getBoundingClientRect()
+        const index = data.columns.findIndex((c) => c.id === colId)
+        const before = e.clientX < rect.left + rect.width / 2 ? colId : (data.columns[index + 1]?.id ?? null)
+        setColDrop((cur) => (cur && cur.before === before ? cur : { before }))
+        return
+      }
       setDragOver((cur) => (cur.col === colId && cur.card === null ? cur : { col: colId, card: null }))
     },
     drop: (e, colId) => {
       e.preventDefault()
+      if (dragColId.current) {
+        const movedColId = dragColId.current
+        const before = colDrop?.before ?? null
+        clearDrag()
+        if (before !== movedColId) apply(api.moveColumn(movedColId, before))
+        return
+      }
       const cardId = dragCardId.current
       const beforeId = dragOver.card
       clearDrag()
       if (cardId && cardId !== beforeId) apply(api.moveCard(cardId, colId, beforeId))
+    },
+    colDragStart: (e, colId) => {
+      // Not from the title input — keep click-to-focus/selection behaviors there
+      if ((e.target as HTMLElement).tagName === 'INPUT') {
+        e.preventDefault()
+        return
+      }
+      dragColId.current = colId
+      e.dataTransfer.effectAllowed = 'move'
+      try {
+        e.dataTransfer.setData('text/plain', colId)
+      } catch {
+        // some browsers restrict dataTransfer — the ref is the source of truth
+      }
+      setDraggingCol(colId)
+    },
+    colDragEnd: clearDrag,
+    boardEndDragOver: (e) => {
+      if (!dragColId.current) return
+      e.preventDefault()
+      setColDrop((cur) => (cur && cur.before === null ? cur : { before: null }))
     },
   }
 
@@ -159,11 +203,19 @@ function KanbanApp({ initial }: { initial: BoardData }) {
           : api.addCardLabel(openCard.id, labelId),
       )
     },
+    setDueDate: (dueDate) => openCard && apply(api.setCardDueDate(openCard.id, dueDate)),
     addCheckItem: (text) => openCard && apply(api.addCheckItem(openCard.id, text)),
     toggleCheckItem: (itemId) => {
       if (!openCard) return
       const item = openCard.checklist.find((it) => it.id === itemId)
       if (item) apply(api.patchCheckItem(openCard.id, itemId, { done: !item.done }))
+    },
+    setCheckItemText: (itemId, text) => {
+      if (!openCard) return
+      updateCard(openCard.id, {
+        checklist: openCard.checklist.map((it) => (it.id === itemId ? { ...it, text } : it)),
+      })
+      api.patchCheckItemText(openCard.id, itemId, text)
     },
     deleteCheckItem: (itemId) => openCard && apply(api.deleteCheckItem(openCard.id, itemId)),
     archiveCard: () => {
@@ -284,6 +336,8 @@ function KanbanApp({ initial }: { initial: BoardData }) {
           dragging={dragging}
           dragOverCol={dragOver.col}
           dragOverCard={dragOver.card}
+          draggingCol={draggingCol}
+          colDropBefore={colDrop ? colDrop.before : undefined}
           actions={boardActions}
         />
       ) : (

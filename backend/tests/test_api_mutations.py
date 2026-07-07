@@ -45,12 +45,25 @@ def test_archive_all(seeded_client):
     assert b["cards"]["c4"]["archived"] is True
 
 
+def test_move_column_before_anchor(seeded_client):
+    b = board_of(
+        seeded_client.post("/api/columns/col4/move", json={"beforeColumnId": "col2"})
+    )
+    assert [c["id"] for c in b["columns"]] == ["col1", "col4", "col2", "col3"]
+
+
+def test_move_column_to_end(seeded_client):
+    b = board_of(seeded_client.post("/api/columns/col1/move", json={}))
+    assert [c["id"] for c in b["columns"]] == ["col2", "col3", "col4", "col1"]
+
+
 def test_column_endpoints_404_on_unknown_id(seeded_client):
     assert (
         seeded_client.patch("/api/columns/nope", json={"title": "X"}).status_code == 404
     )
     assert seeded_client.delete("/api/columns/nope").status_code == 404
     assert seeded_client.post("/api/columns/nope/archive-all").status_code == 404
+    assert seeded_client.post("/api/columns/nope/move", json={}).status_code == 404
     assert (
         seeded_client.post("/api/columns/nope/cards", json={"title": "X"}).status_code
         == 404
@@ -94,6 +107,20 @@ def test_patch_card_text(seeded_client):
         seeded_client.patch("/api/cards/c1", json={"title": "T2", "description": "D2"})
     )
     assert b["cards"]["c1"]["title"] == "T2" and b["cards"]["c1"]["description"] == "D2"
+
+
+def test_set_and_clear_card_due_date(seeded_client):
+    b = board_of(
+        seeded_client.put("/api/cards/c2/due-date", json={"dueDate": "2026-08-15"})
+    )
+    assert b["cards"]["c2"]["dueDate"] == "2026-08-15"
+    b = board_of(seeded_client.put("/api/cards/c2/due-date", json={"dueDate": None}))
+    assert "dueDate" not in b["cards"]["c2"]  # exclude_none drops cleared dates
+
+
+def test_set_card_due_date_invalid_422(seeded_client):
+    res = seeded_client.put("/api/cards/c2/due-date", json={"dueDate": "someday"})
+    assert res.status_code == 422
 
 
 def test_move_card(seeded_client):
@@ -140,6 +167,12 @@ def test_card_endpoints_404_on_unknown_id(seeded_client):
     assert seeded_client.post("/api/cards/nope/archive").status_code == 404
     assert seeded_client.post("/api/cards/nope/restore").status_code == 404
     assert seeded_client.delete("/api/cards/nope").status_code == 404
+    assert (
+        seeded_client.put(
+            "/api/cards/nope/due-date", json={"dueDate": "2026-08-15"}
+        ).status_code
+        == 404
+    )
 
 
 # --- card labels / checklist ------------------------------------------------------------

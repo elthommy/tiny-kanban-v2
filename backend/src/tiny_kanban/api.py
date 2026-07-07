@@ -93,6 +93,14 @@ def patch_column(
     return board_response(session)
 
 
+@router.post("/columns/{column_id}/move")
+def move_column(
+    column_id: str, body: schemas.ColumnMove, session: Session = Depends(get_session)
+) -> JSONResponse:
+    service.move_column(session, column_id, body.beforeColumnId)
+    return board_response(session)
+
+
 @router.delete("/columns/{column_id}")
 def remove_column(
     column_id: str, session: Session = Depends(get_session)
@@ -125,6 +133,14 @@ def patch_card(
     card_id: str, body: schemas.CardTextPatch, session: Session = Depends(get_session)
 ) -> JSONResponse:
     service.update_card_text(session, card_id, body.title, body.description)
+    return board_response(session)
+
+
+@router.put("/cards/{card_id}/due-date")
+def set_card_due_date(
+    card_id: str, body: schemas.CardDueDate, session: Session = Depends(get_session)
+) -> JSONResponse:
+    service.set_card_due_date(session, card_id, body.dueDate)
     return board_response(session)
 
 

@@ -37,6 +37,7 @@ class CardSchema(Schema):
     archived: bool
     archivedFrom: str | None = None
     archivedAt: int | None = None
+    dueDate: str | None = None  # ISO date "YYYY-MM-DD"
 
 
 class ColumnSchema(Schema):
@@ -69,6 +70,10 @@ class ColumnPatch(Schema):
     title: str
 
 
+class ColumnMove(Schema):
+    beforeColumnId: str | None = None
+
+
 class CardCreate(Schema):
     title: str
     position: Literal["top", "bottom"] = "bottom"
@@ -82,6 +87,10 @@ class CardTextPatch(Schema):
 class CardMove(Schema):
     toColumnId: str
     beforeCardId: str | None = None
+
+
+class CardDueDate(Schema):
+    dueDate: str | None = None  # None clears the due date
 
 
 class ChecklistCreate(Schema):

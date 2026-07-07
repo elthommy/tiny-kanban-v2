@@ -7,6 +7,7 @@ are thin wrappers around it. Keep new rules here, not in the frontend.
 import random
 import string
 import time
+from datetime import date
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -40,6 +41,18 @@ def uid(prefix: str) -> str:
 
 def now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def _validated_due_date(value: str | None) -> str | None:
+    """Due dates are plain ISO dates ("YYYY-MM-DD") — no time, no timezone."""
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError:
+        raise BoardValidationError(
+            f"invalid due date {value!r}, expected YYYY-MM-DD"
+        ) from None
 
 
 class BoardValidationError(ValueError):
@@ -132,6 +145,7 @@ def get_board(session: Session) -> BoardData:
                 archived=card.archived,
                 archivedFrom=card.archived_from,
                 archivedAt=card.archived_at,
+                dueDate=card.due_date,
             )
             for card in cards
         },
@@ -180,6 +194,7 @@ def validate_board(board: BoardData) -> None:
             raise BoardValidationError(
                 f"duplicate checklist item id on card {card.id!r}"
             )
+        _validated_due_date(card.dueDate)
 
     for key, card in board.cards.items():
         if key != card.id:
@@ -226,6 +241,7 @@ def replace_board(session: Session, board: BoardData) -> None:
                 archived=card.archived,
                 archived_from=card.archivedFrom,
                 archived_at=card.archivedAt,
+                due_date=card.dueDate,
                 column_id=column_id,
                 position=position,
             )
@@ -356,6 +372,30 @@ def delete_column(session: Session, column_id: str) -> None:
     _finalize(session)
 
 
+def move_column(
+    session: Session, column_id: str, before_column_id: str | None = None
+) -> None:
+    """Same rule as move_card, applied to columns: remove from the current spot,
+    insert before the anchor column (or append when the anchor is absent/None)."""
+    col = _column(session, column_id)
+    if before_column_id == column_id:
+        return
+    others = [
+        c
+        for c in session.scalars(
+            select(models.BoardColumn).order_by(models.BoardColumn.position)
+        )
+        if c.id != column_id
+    ]
+    index = next(
+        (i for i, c in enumerate(others) if c.id == before_column_id), len(others)
+    )
+    others.insert(index, col)
+    for i, c in enumerate(others):
+        c.position = i
+    _finalize(session)
+
+
 def archive_all(session: Session, column_id: str) -> None:
     _column(session, column_id)
     for card in _column_cards(session, column_id):
@@ -395,6 +435,12 @@ def update_card_text(
         card.title = title
     if description is not None:
         card.description = description
+    _finalize(session)
+
+
+def set_card_due_date(session: Session, card_id: str, due_date: str | None) -> None:
+    """Set or clear (None) a card's due date."""
+    _card(session, card_id).due_date = _validated_due_date(due_date)
     _finalize(session)
 
 
@@ -612,6 +658,7 @@ def card_summary(session: Session, card: models.Card) -> dict:
         "labels": labels,
         "checklist_done": sum(1 for it in items if it.done),
         "checklist_total": len(items),
+        "due_date": card.due_date,
         "archived": card.archived,
     }
 

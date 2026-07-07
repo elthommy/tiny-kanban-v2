@@ -122,6 +122,24 @@ export default function CardModal({ card, labels, labelEditorOpen, colorPickerLa
         )}
 
         <div className="section-label" style={{ marginBottom: 8 }}>
+          DUE DATE
+        </div>
+        <div className="due-row">
+          <input
+            type="date"
+            className="due-input"
+            value={card.dueDate ?? ''}
+            onChange={(e) => actions.setDueDate(e.target.value || null)}
+            aria-label="Due date"
+          />
+          {card.dueDate && (
+            <button className="due-clear" onClick={() => actions.setDueDate(null)} title="Remove due date">
+              ×
+            </button>
+          )}
+        </div>
+
+        <div className="section-label" style={{ marginBottom: 8 }}>
           DESCRIPTION
         </div>
         <textarea
@@ -147,7 +165,11 @@ export default function CardModal({ card, labels, labelEditorOpen, colorPickerLa
           {card.checklist.map((it) => (
             <div key={it.id} className="check-item">
               <input type="checkbox" checked={it.done} onChange={() => actions.toggleCheckItem(it.id)} />
-              <span className={`check-text${it.done ? ' done' : ''}`}>{it.text}</span>
+              <input
+                className={`check-text-input${it.done ? ' done' : ''}`}
+                value={it.text}
+                onChange={(e) => actions.setCheckItemText(it.id, e.target.value)}
+              />
               <button className="check-del" onClick={() => actions.deleteCheckItem(it.id)}>
                 ×
               </button>

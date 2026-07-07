@@ -15,6 +15,9 @@ export interface BoardActions {
   cardDragOver: (e: DragEvent, colId: string, cardId: string) => void
   columnDragOver: (e: DragEvent, colId: string) => void
   drop: (e: DragEvent, colId: string) => void
+  colDragStart: (e: DragEvent, colId: string) => void
+  colDragEnd: () => void
+  boardEndDragOver: (e: DragEvent) => void
 }
 
 export interface CardActions {
@@ -22,8 +25,10 @@ export interface CardActions {
   setTitle: (title: string) => void
   setDescription: (description: string) => void
   toggleLabel: (labelId: string) => void
+  setDueDate: (dueDate: string | null) => void
   addCheckItem: (text: string) => void
   toggleCheckItem: (itemId: string) => void
+  setCheckItemText: (itemId: string, text: string) => void
   deleteCheckItem: (itemId: string) => void
   archiveCard: () => void
   deleteCard: () => void

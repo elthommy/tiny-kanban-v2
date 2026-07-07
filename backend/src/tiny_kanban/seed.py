@@ -1,5 +1,6 @@
 """Demo board seeded on first launch (Python port of the original frontend seed)."""
 
+from datetime import date, timedelta
 from itertools import count
 
 from .schemas import (
@@ -28,6 +29,7 @@ def _card(
     labels: list[str] | None = None,
     checklist: list[ChecklistItemSchema] | None = None,
     description: str = "",
+    due_in_days: int | None = None,
 ) -> CardSchema:
     return CardSchema(
         id=id,
@@ -36,6 +38,12 @@ def _card(
         checklist=checklist or [],
         description=description,
         archived=False,
+        # Relative to today so the demo always shows the overdue/soon/normal states
+        dueDate=(
+            (date.today() + timedelta(days=due_in_days)).isoformat()
+            if due_in_days is not None
+            else None
+        ),
     )
 
 
@@ -62,6 +70,7 @@ def seed_board() -> BoardData:
                 _ck("Usability test with 5 users"),
             ],
             "Cut drop-off in the first session by simplifying signup.",
+            due_in_days=6,
         ),
         _card(
             "c2",
@@ -76,6 +85,7 @@ def seed_board() -> BoardData:
             ["l2", "l5", "l6"],
             [_ck("Reproduce locally", True), _ck("Add retry with backoff")],
             "Stripe events arriving after 30s cause missed orders.",
+            due_in_days=-1,
         ),
         _card(
             "c5",
@@ -99,7 +109,7 @@ def seed_board() -> BoardData:
             ["l5"],
             [_ck("Design token bucket"), _ck("Add response headers")],
         ),
-        _card("c8", "Ship v2.3 release", ["l3"]),
+        _card("c8", "Ship v2.3 release", ["l3"], due_in_days=1),
         _card("c9", "Migrate assets to new CDN", ["l5"]),
     ]
     columns = [

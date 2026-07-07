@@ -76,8 +76,8 @@ in `main.py` for `NotFoundError` / `BoardValidationError`).
 | Area | Endpoints |
 |---|---|
 | Board | `GET /api/board` · `PUT /api/board` (import path; optional `If-Match` → 412 on stale version) · `PATCH /api/board` (subtitle) |
-| Columns | `POST /api/columns` · `PATCH·DELETE /api/columns/{id}` · `POST …/archive-all` · `POST …/cards` |
-| Cards | `PATCH·DELETE /api/cards/{id}` · `POST …/move` · `POST …/archive` · `POST …/restore` |
+| Columns | `POST /api/columns` · `PATCH·DELETE /api/columns/{id}` · `POST …/move` · `POST …/archive-all` · `POST …/cards` |
+| Cards | `PATCH·DELETE /api/cards/{id}` · `POST …/move` · `POST …/archive` · `POST …/restore` · `PUT …/due-date` |
 | Card labels | `PUT·DELETE /api/cards/{id}/labels/{labelId}` |
 | Checklist | `POST /api/cards/{id}/checklist` · `PATCH·DELETE …/checklist/{itemId}` |
 | Labels | `POST /api/labels` · `PATCH·DELETE /api/labels/{id}` |
@@ -99,10 +99,11 @@ All tools are thin wrappers over `service.py` — one tool per query/mutation:
 - **Read**: `get_board` · `list_cards(query?, column?, label?, archived?)` ·
   `get_card(card_id)`
 - **Board**: `set_board_subtitle` (header subtitle, stored in `meta`)
-- **Columns**: `add_column` · `rename_column` · `delete_column` (cards → archive)
-  · `archive_all_cards`
+- **Columns**: `add_column` · `rename_column` · `move_column` (reorder) ·
+  `delete_column` (cards → archive) · `archive_all_cards`
 - **Cards**: `add_card` (title, description, top/bottom) · `update_card` ·
-  `move_card` · `archive_card` · `restore_card` · `delete_card`
+  `set_card_due_date` ("YYYY-MM-DD", omit to clear) · `move_card` ·
+  `archive_card` · `restore_card` · `delete_card`
 - **Card labels / checklist**: `add_card_label` · `remove_card_label` ·
   `add_checklist_item` · `update_checklist_item` · `delete_checklist_item`
 - **Labels**: `create_label` (palette color auto-picked) · `rename_label` ·
@@ -122,7 +123,8 @@ unrelated MCP writes.
 
 - **Structural actions** (add/move/archive/delete/toggles) call an endpoint,
   and `App.tsx` adopts the returned board wholesale. No board rules in React.
-- **Text edits** (card title/description, column title, label name) fire per
+- **Text edits** (card title/description, column title, label name, checklist
+  item text) fire per
   keystroke: local state updates optimistically, `api.ts` debounces a PATCH
   per target (400 ms) and flushes on tab-hide **and before any structural
   call** (so a structural response can't revive stale text).
@@ -180,7 +182,8 @@ Migrations run automatically at startup; users never run Alembic by hand.
 ## Roadmap
 
 Done: SQLite + Alembic (Phase 1) · per-resource API, rules in `service.py`,
-board version/ETag, MCP at `/mcp` (Phase 2) · MCP write tools.
+board version/ETag, MCP at `/mcp` (Phase 2) · MCP write tools · due dates
+(`cards.due_date`, ISO "YYYY-MM-DD") · column reordering.
 
-Next ideas: due dates · card dependencies (`card_dependencies` table + FK
-cascade) — each lands as an Alembic migration.
+Next ideas: card dependencies (`card_dependencies` table + FK cascade) — each
+lands as an Alembic migration.

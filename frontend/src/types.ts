@@ -21,6 +21,7 @@ export interface Card {
   archived: boolean
   archivedFrom?: string | null
   archivedAt?: number
+  dueDate?: string // ISO date "YYYY-MM-DD"
 }
 
 export interface Column {

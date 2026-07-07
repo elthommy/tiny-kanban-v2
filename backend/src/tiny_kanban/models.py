@@ -36,6 +36,8 @@ class Card(Base):
     archived_at: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )  # ms epoch, matches JS Date.now()
+    # ISO date "YYYY-MM-DD" (no time/timezone), NULL when the card has no due date
+    due_date: Mapped[str | None] = mapped_column(String, nullable=True)
     # NULL for archived/orphan cards
     column_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("columns.id", ondelete="CASCADE"), nullable=True

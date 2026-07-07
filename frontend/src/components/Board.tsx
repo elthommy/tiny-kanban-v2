@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { BoardActions } from '../actions'
 import type { Card, Column, Label } from '../types'
@@ -11,7 +12,24 @@ interface BoardProps {
   dragging: string | null
   dragOverCol: string | null
   dragOverCard: string | null
+  draggingCol: string | null
+  colDropBefore: string | null | undefined // undefined = no drop target yet
   actions: BoardActions
+}
+
+function dueBadge(dueDate: string) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(`${dueDate}T00:00:00`)
+  const days = Math.round((due.getTime() - today.getTime()) / 86400000)
+  return {
+    cls: days < 0 ? ' overdue' : days <= 1 ? ' soon' : '',
+    text: due.toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'short',
+      ...(due.getFullYear() !== today.getFullYear() && { year: 'numeric' }),
+    }),
+  }
 }
 
 function submitOnEnter(e: KeyboardEvent<HTMLInputElement>, submit: (value: string) => void) {
@@ -36,6 +54,7 @@ function CardTile({
 }) {
   const labels = cardLabels(card.labels, labelMap)
   const stats = checklistStats(card.checklist)
+  const due = card.dueDate ? dueBadge(card.dueDate) : null
   return (
     <>
       {showIndicator && <div className="drop-indicator" />}
@@ -55,6 +74,12 @@ function CardTile({
           </div>
         )}
         <div className="card-title">{card.title}</div>
+        {due && (
+          <div className={`due-badge${due.cls}`}>
+            <span className="due-flag">⚑</span>
+            {due.text}
+          </div>
+        )}
         {stats.has && (
           <div className="progress-row">
             <div className="progress-track">
@@ -76,6 +101,7 @@ function BoardColumn({
   dragging,
   dragOverCol,
   dragOverCard,
+  isDragSource,
   actions,
 }: {
   column: Column
@@ -85,12 +111,22 @@ function BoardColumn({
   dragging: string | null
   dragOverCol: string | null
   dragOverCard: string | null
+  isDragSource: boolean
   actions: BoardActions
 }) {
   const showEndIndicator = !!dragging && dragOverCol === column.id && !dragOverCard
   return (
-    <div className="column" onDragOver={(e) => actions.columnDragOver(e, column.id)} onDrop={(e) => actions.drop(e, column.id)}>
-      <div className="col-head">
+    <div
+      className={`column${isDragSource ? ' drag-src' : ''}`}
+      onDragOver={(e) => actions.columnDragOver(e, column.id)}
+      onDrop={(e) => actions.drop(e, column.id)}
+    >
+      <div
+        className="col-head"
+        draggable
+        onDragStart={(e) => actions.colDragStart(e, column.id)}
+        onDragEnd={actions.colDragEnd}
+      >
         <input
           className="col-title"
           value={column.title}
@@ -145,23 +181,38 @@ function BoardColumn({
   )
 }
 
-export default function Board({ columns, cards, labelMap, menuColId, dragging, dragOverCol, dragOverCard, actions }: BoardProps) {
+export default function Board({
+  columns,
+  cards,
+  labelMap,
+  menuColId,
+  dragging,
+  dragOverCol,
+  dragOverCard,
+  draggingCol,
+  colDropBefore,
+  actions,
+}: BoardProps) {
   return (
     <div className="board">
       {columns.map((col) => (
-        <BoardColumn
-          key={col.id}
-          column={col}
-          cards={col.cardIds.map((id) => cards[id]).filter((c) => c && !c.archived)}
-          labelMap={labelMap}
-          menuOpen={menuColId === col.id}
-          dragging={dragging}
-          dragOverCol={dragOverCol}
-          dragOverCard={dragOverCard}
-          actions={actions}
-        />
+        <Fragment key={col.id}>
+          {draggingCol && colDropBefore === col.id && <div className="col-drop-indicator" />}
+          <BoardColumn
+            column={col}
+            cards={col.cardIds.map((id) => cards[id]).filter((c) => c && !c.archived)}
+            labelMap={labelMap}
+            menuOpen={menuColId === col.id}
+            dragging={dragging}
+            dragOverCol={dragOverCol}
+            dragOverCard={dragOverCard}
+            isDragSource={draggingCol === col.id}
+            actions={actions}
+          />
+        </Fragment>
       ))}
-      <div className="add-col">
+      {draggingCol && colDropBefore === null && <div className="col-drop-indicator" />}
+      <div className="add-col" onDragOver={actions.boardEndDragOver} onDrop={(e) => actions.drop(e, '')}>
         <input
           className="add-col-input"
           placeholder="+  Add another column"

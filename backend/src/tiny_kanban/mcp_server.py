@@ -99,6 +99,20 @@ def build_mcp(settings: Settings) -> FastMCP:
             return {"id": column_id, "title": title}
 
     @mcp.tool()
+    def move_column(column: str, before_column: str | None = None) -> dict:
+        """Reorder the board: move a column before another one (both by id or
+        name), or to the right end when before_column is omitted."""
+        with session_factory() as session:
+            column_id = service.resolve_column_id(session, column)
+            before_id = (
+                service.resolve_column_id(session, before_column)
+                if before_column is not None
+                else None
+            )
+            service.move_column(session, column_id, before_id)
+            return {"id": column_id, "before": before_id}
+
+    @mcp.tool()
     def delete_column(column: str) -> dict:
         """Delete a column; its cards are moved to the archive, not destroyed."""
         with session_factory() as session:
@@ -136,6 +150,13 @@ def build_mcp(settings: Settings) -> FastMCP:
             service.update_card_text(
                 session, card_id, title=title, description=description
             )
+            return service.get_card_detail(session, card_id)
+
+    @mcp.tool()
+    def set_card_due_date(card_id: str, due_date: str | None = None) -> dict:
+        """Set a card's due date ("YYYY-MM-DD"), or clear it when omitted."""
+        with session_factory() as session:
+            service.set_card_due_date(session, card_id, due_date)
             return service.get_card_detail(session, card_id)
 
     @mcp.tool()

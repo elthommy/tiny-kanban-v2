@@ -103,6 +103,8 @@ export const api = {
 
   // columns
   addColumn: (title: string) => mutate('/api/columns', 'POST', { title }),
+  moveColumn: (colId: string, beforeColumnId: string | null) =>
+    mutate(`/api/columns/${id(colId)}/move`, 'POST', { beforeColumnId }),
   deleteColumn: (colId: string) => mutate(`/api/columns/${id(colId)}`, 'DELETE'),
   archiveAll: (colId: string) => mutate(`/api/columns/${id(colId)}/archive-all`, 'POST'),
   renameColumn: (colId: string, title: string) =>
@@ -118,6 +120,8 @@ export const api = {
   deleteCard: (cardId: string) => mutate(`/api/cards/${id(cardId)}`, 'DELETE'),
   patchCardText: (cardId: string, patch: { title?: string; description?: string }) =>
     patchTextDebounced(`/api/cards/${id(cardId)}`, patch),
+  setCardDueDate: (cardId: string, dueDate: string | null) =>
+    mutate(`/api/cards/${id(cardId)}/due-date`, 'PUT', { dueDate }),
 
   // card labels
   addCardLabel: (cardId: string, labelId: string) =>
@@ -130,6 +134,8 @@ export const api = {
     mutate(`/api/cards/${id(cardId)}/checklist`, 'POST', { text }),
   patchCheckItem: (cardId: string, itemId: string, patch: Partial<Pick<ChecklistItem, 'done' | 'text'>>) =>
     mutate(`/api/cards/${id(cardId)}/checklist/${id(itemId)}`, 'PATCH', patch),
+  patchCheckItemText: (cardId: string, itemId: string, text: string) =>
+    patchTextDebounced(`/api/cards/${id(cardId)}/checklist/${id(itemId)}`, { text }),
   deleteCheckItem: (cardId: string, itemId: string) =>
     mutate(`/api/cards/${id(cardId)}/checklist/${id(itemId)}`, 'DELETE'),
 

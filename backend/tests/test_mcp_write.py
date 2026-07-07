@@ -41,6 +41,20 @@ def test_rename_column_by_name(seeded_client):
     assert rest_board(seeded_client)["columns"][0]["title"] == "Backlog"
 
 
+def test_move_column_by_name(seeded_client):
+    tool_result(
+        seeded_client, "move_column", {"column": "Done", "before_column": "blocked"}
+    )
+    cols = [c["id"] for c in rest_board(seeded_client)["columns"]]
+    assert cols == ["col1", "col4", "col2", "col3"]
+
+
+def test_move_column_to_end(seeded_client):
+    tool_result(seeded_client, "move_column", {"column": "To Do"})
+    cols = [c["id"] for c in rest_board(seeded_client)["columns"]]
+    assert cols == ["col2", "col3", "col4", "col1"]
+
+
 def test_delete_column_archives_its_cards(seeded_client):
     tool_result(seeded_client, "delete_column", {"column": "Done"})
     board = rest_board(seeded_client)
@@ -81,6 +95,16 @@ def test_update_card_keeps_omitted_fields(seeded_client):
     )
     assert detail["title"] == "New title"
     assert detail["description"].startswith("Stripe events")
+
+
+def test_set_and_clear_card_due_date(seeded_client):
+    detail = tool_result(
+        seeded_client, "set_card_due_date", {"card_id": "c2", "due_date": "2026-08-15"}
+    )
+    assert detail["due_date"] == "2026-08-15"
+    assert rest_board(seeded_client)["cards"]["c2"]["dueDate"] == "2026-08-15"
+    detail = tool_result(seeded_client, "set_card_due_date", {"card_id": "c2"})
+    assert detail["due_date"] is None
 
 
 def test_move_card_before_anchor(seeded_client):
