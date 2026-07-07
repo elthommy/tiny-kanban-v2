@@ -9,7 +9,7 @@ license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
+    "uvicorn[standard]>=0.50.2",
     "sqlalchemy>=2.0",
     "alembic>=1.14",
     "pydantic-settings>=2.7",
@@ -24,7 +24,7 @@ dev = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.11.26,<0.12.0"]
+requires = ["uv_build>=0.11.27,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.pytest.ini_options]
