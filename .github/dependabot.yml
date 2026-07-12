@@ -8,6 +8,9 @@ multi-ecosystem-groups:
   weekly-deps:
     schedule:
       interval: "weekly"
+      day: "saturday"
+      time: "14:00"
+      timezone: "Europe/Paris"
 
 updates:
   - package-ecosystem: "npm"
