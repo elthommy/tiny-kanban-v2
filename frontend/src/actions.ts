@@ -5,6 +5,7 @@ export interface BoardActions {
   renameColumn: (colId: string, title: string) => void
   addCard: (colId: string, title: string) => void
   addColumn: (title: string) => void
+  sortColumn: (colId: string) => void
   archiveAll: (colId: string) => void
   deleteColumn: (colId: string) => void
   toggleColumnMenu: (colId: string) => void

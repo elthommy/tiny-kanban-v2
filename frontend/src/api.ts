@@ -107,6 +107,7 @@ export const api = {
     mutate(`/api/columns/${id(colId)}/move`, 'POST', { beforeColumnId }),
   deleteColumn: (colId: string) => mutate(`/api/columns/${id(colId)}`, 'DELETE'),
   archiveAll: (colId: string) => mutate(`/api/columns/${id(colId)}/archive-all`, 'POST'),
+  sortColumn: (colId: string) => mutate(`/api/columns/${id(colId)}/sort`, 'POST'),
   renameColumn: (colId: string, title: string) =>
     patchTextDebounced(`/api/columns/${id(colId)}`, { title }),
 

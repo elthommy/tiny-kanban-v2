@@ -45,6 +45,15 @@ def test_archive_all(seeded_client):
     assert b["cards"]["c4"]["archived"] is True
 
 
+def test_sort_column(seeded_client):
+    # col1: c1 "Redesign…" (Design), c2 "Conduct…" (Research), c3 unlabelled
+    seeded_client.post("/api/columns/col1/cards", json={"title": "Another design task"})
+    new_id = board_of(seeded_client.get("/api/board"))["columns"][0]["cardIds"][-1]
+    seeded_client.put(f"/api/cards/{new_id}/labels/l1")
+    b = board_of(seeded_client.post("/api/columns/col1/sort"))
+    assert column(b, "col1")["cardIds"] == [new_id, "c1", "c2", "c3"]
+
+
 def test_move_column_before_anchor(seeded_client):
     b = board_of(
         seeded_client.post("/api/columns/col4/move", json={"beforeColumnId": "col2"})
@@ -63,6 +72,7 @@ def test_column_endpoints_404_on_unknown_id(seeded_client):
     )
     assert seeded_client.delete("/api/columns/nope").status_code == 404
     assert seeded_client.post("/api/columns/nope/archive-all").status_code == 404
+    assert seeded_client.post("/api/columns/nope/sort").status_code == 404
     assert seeded_client.post("/api/columns/nope/move", json={}).status_code == 404
     assert (
         seeded_client.post("/api/columns/nope/cards", json={"title": "X"}).status_code

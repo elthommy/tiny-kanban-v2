@@ -69,6 +69,7 @@ WRITE_TOOLS = {
     "move_column",
     "delete_column",
     "archive_all_cards",
+    "sort_column",
     "add_card",
     "update_card",
     "set_card_due_date",

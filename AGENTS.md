@@ -76,7 +76,7 @@ in `main.py` for `NotFoundError` / `BoardValidationError`).
 | Area | Endpoints |
 |---|---|
 | Board | `GET /api/board` · `PUT /api/board` (import path; optional `If-Match` → 412 on stale version) · `PATCH /api/board` (subtitle) |
-| Columns | `POST /api/columns` · `PATCH·DELETE /api/columns/{id}` · `POST …/move` · `POST …/archive-all` · `POST …/cards` |
+| Columns | `POST /api/columns` · `PATCH·DELETE /api/columns/{id}` · `POST …/move` · `POST …/sort` · `POST …/archive-all` · `POST …/cards` |
 | Cards | `PATCH·DELETE /api/cards/{id}` · `POST …/move` · `POST …/archive` · `POST …/restore` · `PUT …/due-date` |
 | Card labels | `PUT·DELETE /api/cards/{id}/labels/{labelId}` |
 | Checklist | `POST /api/cards/{id}/checklist` · `PATCH·DELETE …/checklist/{itemId}` |
@@ -100,7 +100,8 @@ All tools are thin wrappers over `service.py` — one tool per query/mutation:
   `get_card(card_id)`
 - **Board**: `set_board_subtitle` (header subtitle, stored in `meta`)
 - **Columns**: `add_column` · `rename_column` · `move_column` (reorder) ·
-  `delete_column` (cards → archive) · `archive_all_cards`
+  `delete_column` (cards → archive) · `sort_column` (by label, then title) ·
+  `archive_all_cards`
 - **Cards**: `add_card` (title, description, top/bottom) · `update_card` ·
   `set_card_due_date` ("YYYY-MM-DD", omit to clear) · `move_card` ·
   `archive_card` · `restore_card` · `delete_card`
@@ -183,7 +184,7 @@ Migrations run automatically at startup; users never run Alembic by hand.
 
 Done: SQLite + Alembic (Phase 1) · per-resource API, rules in `service.py`,
 board version/ETag, MCP at `/mcp` (Phase 2) · MCP write tools · due dates
-(`cards.due_date`, ISO "YYYY-MM-DD") · column reordering.
+(`cards.due_date`, ISO "YYYY-MM-DD") · column reordering · column sort by label.
 
 Next ideas: card dependencies (`card_dependencies` table + FK cascade) — each
 lands as an Alembic migration.

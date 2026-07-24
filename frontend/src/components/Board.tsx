@@ -147,6 +147,9 @@ function BoardColumn({
             <button className="menu-item" onClick={() => actions.addCard(column.id, 'New card')}>
               Add a card
             </button>
+            <button className="menu-item" onClick={() => actions.sortColumn(column.id)}>
+              Sort by label
+            </button>
             <button className="menu-item" onClick={() => actions.archiveAll(column.id)}>
               Archive all cards
             </button>

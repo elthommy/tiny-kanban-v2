@@ -99,6 +99,10 @@ function KanbanApp({ initial }: { initial: BoardData }) {
       setMenuColId(null)
     },
     addColumn: (title) => apply(api.addColumn(title)),
+    sortColumn: (colId) => {
+      apply(api.sortColumn(colId))
+      setMenuColId(null)
+    },
     archiveAll: (colId) => {
       apply(api.archiveAll(colId))
       setMenuColId(null)

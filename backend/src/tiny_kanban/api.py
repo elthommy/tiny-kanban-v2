@@ -117,6 +117,14 @@ def archive_all_cards(
     return board_response(session)
 
 
+@router.post("/columns/{column_id}/sort")
+def sort_column(
+    column_id: str, session: Session = Depends(get_session)
+) -> JSONResponse:
+    service.sort_column(session, column_id)
+    return board_response(session)
+
+
 @router.post("/columns/{column_id}/cards")
 def create_card(
     column_id: str, body: schemas.CardCreate, session: Session = Depends(get_session)

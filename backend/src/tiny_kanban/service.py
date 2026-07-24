@@ -396,6 +396,41 @@ def move_column(
     _finalize(session)
 
 
+def _label_rank(session: Session, column_id: str) -> dict[str, tuple[int, str]]:
+    """Sort key per card of a column: (rank of its first label, that label's name).
+
+    The rank is the label's position in the board's label order; cards with no
+    label rank last so they end up grouped at the bottom of the column.
+    """
+    labels = {
+        lb.id: (i, lb.name)
+        for i, lb in enumerate(
+            session.scalars(select(models.Label).order_by(models.Label.position))
+        )
+    }
+    first_label: dict[str, str] = {}
+    for cl in session.scalars(
+        select(models.CardLabel).order_by(models.CardLabel.position)
+    ):
+        first_label.setdefault(cl.card_id, cl.label_id)
+    unlabelled = (len(labels), "")
+    return {
+        card.id: labels.get(first_label.get(card.id, ""), unlabelled)
+        for card in _column_cards(session, column_id)
+    }
+
+
+def sort_column(session: Session, column_id: str) -> None:
+    """Reorder a column: cards grouped by their first label (board label order),
+    then alphabetically by title inside each group. Unlabelled cards go last."""
+    _column(session, column_id)
+    ranks = _label_rank(session, column_id)
+    cards = _column_cards(session, column_id)
+    cards.sort(key=lambda c: (ranks[c.id], c.title.casefold(), c.title, c.id))
+    _place_cards(cards, column_id)
+    _finalize(session)
+
+
 def archive_all(session: Session, column_id: str) -> None:
     _column(session, column_id)
     for card in _column_cards(session, column_id):

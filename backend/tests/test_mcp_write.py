@@ -62,6 +62,16 @@ def test_delete_column_archives_its_cards(seeded_client):
     assert board["cards"]["c8"]["archived"] is True
 
 
+def test_sort_column_by_name(seeded_client):
+    # col3: c6 "Dark mode visual QA" (Feature), c7 "API rate limiting" (Backend)
+    tool_result(seeded_client, "sort_column", {"column": "Pending Validation"})
+    board = rest_board(seeded_client)
+    assert next(c for c in board["columns"] if c["id"] == "col3")["cardIds"] == [
+        "c6",
+        "c7",
+    ]
+
+
 def test_archive_all_cards(seeded_client):
     tool_result(seeded_client, "archive_all_cards", {"column": "Blocked"})
     board = rest_board(seeded_client)

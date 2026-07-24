@@ -129,6 +129,15 @@ def build_mcp(settings: Settings) -> FastMCP:
             return {"column": column_id, "archived_all": True}
 
     @mcp.tool()
+    def sort_column(column: str) -> dict:
+        """Reorder a column's cards by label (board label order), then
+        alphabetically by title inside each label. Unlabelled cards go last."""
+        with session_factory() as session:
+            column_id = service.resolve_column_id(session, column)
+            service.sort_column(session, column_id)
+            return {"column": column_id, "sorted": True}
+
+    @mcp.tool()
     def add_card(
         column: str,
         title: str,

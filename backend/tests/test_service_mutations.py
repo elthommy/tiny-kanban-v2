@@ -89,6 +89,70 @@ def test_move_unknown_column_404(seeded):
         service.move_column(seeded, "nope", None)
 
 
+def _labelled_column(session) -> None:
+    """Fill col2 with cards whose label/title order is the reverse of sorted order."""
+    service.archive_all(session, "col2")
+    for title, labels in [
+        ("zeta", ["l3"]),  # Feature (rank 2)
+        ("no label b", []),
+        ("alpha", ["l3"]),
+        ("beta", ["l1"]),  # Design (rank 0)
+        ("no label a", []),
+        ("Gamma", ["l1"]),
+    ]:
+        card_id = service.add_card(session, "col2", title)
+        for label_id in labels:
+            service.add_card_label(session, card_id, label_id)
+
+
+def _titles(session, column_id: str) -> list[str]:
+    b = board(session)
+    return [b.cards[cid].title for cid in column_cards(session, column_id)]
+
+
+def test_sort_column_groups_by_label_then_title(seeded):
+    _labelled_column(seeded)
+    service.sort_column(seeded, "col2")
+    assert _titles(seeded, "col2") == [
+        "beta",
+        "Gamma",  # Design first (label order), case-insensitive alphabetical
+        "alpha",
+        "zeta",  # then Feature
+        "no label a",
+        "no label b",  # unlabelled cards last
+    ]
+
+
+def test_sort_column_uses_the_cards_first_label(seeded):
+    service.archive_all(seeded, "col2")
+    urgent_then_design = service.add_card(seeded, "col2", "a first")
+    design_only = service.add_card(seeded, "col2", "b second")
+    service.add_card_label(seeded, urgent_then_design, "l6")  # Urgent (rank 5)
+    service.add_card_label(seeded, urgent_then_design, "l1")  # Design (rank 0)
+    service.add_card_label(seeded, design_only, "l1")
+    service.sort_column(seeded, "col2")
+    # Design (rank 0) beats Urgent (rank 5), so the design-only card comes first
+    assert _titles(seeded, "col2") == ["b second", "a first"]
+
+
+def test_sort_column_leaves_other_columns_alone(seeded):
+    service.sort_column(seeded, "col2")
+    assert column_cards(seeded, "col1") == ["c1", "c2", "c3"]
+    assert column_cards(seeded, "col4") == ["c8", "c9"]
+
+
+def test_sort_column_ignores_archived_cards(seeded):
+    service.archive_card(seeded, "c4")
+    service.sort_column(seeded, "col2")
+    assert column_cards(seeded, "col2") == ["c5"]
+    assert board(seeded).cards["c4"].archived
+
+
+def test_sort_unknown_column_404(seeded):
+    with pytest.raises(NotFoundError):
+        service.sort_column(seeded, "nope")
+
+
 def test_archive_all_empties_column_but_keeps_it(seeded):
     service.archive_all(seeded, "col2")
     b = board(seeded)
