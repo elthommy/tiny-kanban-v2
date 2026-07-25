@@ -22,7 +22,6 @@ from .schemas import (
     LabelSchema,
 )
 
-
 INITIALIZED_KEY = "initialized"
 VERSION_KEY = "version"
 SUBTITLE_KEY = "subtitle"

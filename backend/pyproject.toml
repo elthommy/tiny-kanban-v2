@@ -27,6 +27,22 @@ dev = [
 requires = ["uv_build>=0.11.29,<0.12.0"]
 build-backend = "uv_build"
 
+[tool.ruff.lint]
+# Pin an explicit, deliberately small rule set: real errors (E/F), import
+# sorting (I) and modern-syntax rewrites (UP). Without this we inherit ruff's
+# default set, which grows between releases and flags idiomatic FastAPI code
+# (e.g. B008 on `Depends(...)` defaults).
+select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Migrations are generated from alembic's template; don't fight it.
+"alembic/versions/*" = ["I001", "UP"]
+
+[tool.ruff.lint.isort]
+# The `alembic/` directory at the repo root makes ruff guess that the alembic
+# package is first-party.
+known-third-party = ["alembic"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
