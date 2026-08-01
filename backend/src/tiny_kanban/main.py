@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from . import api
 from .config import Settings, get_settings
 from .db import make_engine, make_session_factory, session_dependency
-from .mcp_server import build_mcp
+from .mcp_server import build_mcp, build_mcp_app
 from .service import BoardValidationError, NotFoundError
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -28,9 +28,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
 
     mcp = build_mcp(settings)
-    # The inner streamable-http app serves at its own configured path; make it
-    # "/" so mounting at /mcp doesn't end up as /mcp/mcp
-    mcp.settings.streamable_http_path = "/"
+    # Builds the session manager the lifespan below runs, so it has to happen
+    # before the app starts — mcp.session_manager raises until it is called.
+    mcp_app = build_mcp_app(mcp)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -55,7 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.dependency_overrides[api.get_session] = session_dependency(session_factory)
 
     app.include_router(api.router)
-    app.mount("/mcp", mcp.streamable_http_app())
+    app.mount("/mcp", mcp_app)
 
     # The mounted Starlette app 307-redirects "/mcp" to "/mcp/"; some MCP
     # clients don't follow redirects on POST, so rewrite the path up front
