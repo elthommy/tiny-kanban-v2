@@ -12,27 +12,21 @@ Register with a client:
 
 from typing import Literal
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from starlette.applications import Starlette
 
 from . import service
 from .config import Settings
 from .db import make_engine, make_session_factory
 
 
-def build_mcp(settings: Settings) -> FastMCP:
-    engine = make_engine(settings)
-    session_factory = make_session_factory(engine)
-
-    mcp = FastMCP(
-        "tiny-kanban",
-        instructions=(
-            "Read and write access to a personal kanban board. Use list_cards "
-            "for filtered queries, get_card for one card's full detail, "
-            "get_board for the entire board structure. Column and label "
-            "arguments accept an id or an exact (case-insensitive) name; card "
-            "and checklist-item arguments are always ids."
-        ),
+def build_mcp_app(mcp: MCPServer) -> Starlette:
+    """Wrap an MCP server in the streamable-HTTP app this project mounts."""
+    return mcp.streamable_http_app(
+        # The inner app serves at its own configured path; make it "/" so
+        # mounting at /mcp doesn't end up as /mcp/mcp.
+        streamable_http_path="/",
         stateless_http=True,
         json_response=True,
         # The REST API beside this mount has no Host validation either — the app
@@ -40,6 +34,23 @@ def build_mcp(settings: Settings) -> FastMCP:
         # would only break non-localhost binds (KANBAN_HOST=0.0.0.0) and tests.
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=False
+        ),
+    )
+
+
+def build_mcp(settings: Settings) -> MCPServer:
+    """Build the MCP server exposing the board's tools."""
+    engine = make_engine(settings)
+    session_factory = make_session_factory(engine)
+
+    mcp = MCPServer(
+        "tiny-kanban",
+        instructions=(
+            "Read and write access to a personal kanban board. Use list_cards "
+            "for filtered queries, get_card for one card's full detail, "
+            "get_board for the entire board structure. Column and label "
+            "arguments accept an id or an exact (case-insensitive) name; card "
+            "and checklist-item arguments are always ids."
         ),
     )
 
