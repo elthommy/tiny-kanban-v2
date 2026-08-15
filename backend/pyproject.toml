@@ -10,21 +10,21 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.52.1",
-    "sqlalchemy>=2.0",
-    "alembic>=1.19.0",
-    "pydantic-settings>=2.7",
+    "sqlalchemy>=2.0.52",
+    "alembic>=1.19.1",
+    "pydantic-settings>=2.15.0",
     "mcp>=2.0.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
-    "httpx2>=2.9.1",
-    "ruff>=0.16.1",
+    "httpx2>=2.10.0",
+    "ruff>=0.16.2",
 ]
 
 [build-system]
-requires = ["uv_build>=0.12.2,<0.13.0"]
+requires = ["uv_build>=0.12.3,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.ruff.lint]
