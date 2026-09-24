@@ -1,6 +1,7 @@
+import re
 from pathlib import Path
 
-from tiny_kanban.config import REPO_ROOT, Settings
+from tiny_kanban.config import PALETTE, REPO_ROOT, Settings
 
 
 def test_defaults():
@@ -48,3 +49,15 @@ def test_unknown_env_entries_ignored(tmp_path: Path):
     env_file.write_text("KANBAN_FRONTEND_PORT=5199\nKANBAN_BACKEND_PORT=7000\n")
     s = Settings(_env_file=env_file)
     assert s.backend_port == 7000
+
+
+def test_palette_matches_frontend():
+    ts = (REPO_ROOT / "frontend" / "src" / "config.ts").read_text()
+    block = ts.split("export const PALETTE", 1)[1].split("= [", 1)[1].split("]", 1)[0]
+    entries = re.findall(r"bg: '(#\w+)', fg: '(#\w+)', dot: '(#\w+)'", block)
+    assert [{"bg": b, "fg": f, "dot": d} for b, f, d in entries] == PALETTE
+
+
+def test_palette_has_twelve_distinct_colors():
+    assert len(PALETTE) == 12
+    assert len({c["dot"] for c in PALETTE}) == 12
