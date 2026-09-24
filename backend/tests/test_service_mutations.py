@@ -399,6 +399,16 @@ def test_add_label_defaults_cycle_palette(seeded):
     } == PALETTE[7]
 
 
+def test_add_label_uses_all_twelve_colors_then_wraps(seeded):
+    # seed has 6 labels; labels 7..12 take entries 6..11, the 13th wraps to 0
+    ids = [service.add_label(seeded) for _ in range(7)]
+    labels = {lb.id: lb for lb in board(seeded).labels}
+    colors = [
+        {"bg": labels[i].bg, "fg": labels[i].fg, "dot": labels[i].dot} for i in ids
+    ]
+    assert colors == PALETTE[6:12] + [PALETTE[0]]
+
+
 def test_update_label_partial(seeded):
     service.update_label(seeded, "l1", name="UX")
     service.update_label(seeded, "l1", bg="#000000", fg="#FFFFFF", dot="#FF0000")

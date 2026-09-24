@@ -24,4 +24,8 @@ export const PALETTE: LabelColor[] = [
   { bg: '#4A2038', fg: '#F0A6C9', dot: '#D63B82' },
   { bg: '#16403F', fg: '#8FD6D9', dot: '#22A6AD' },
   { bg: '#2E313A', fg: '#B7BDCB', dot: '#8892A6' },
+  { bg: '#4A2F18', fg: '#F0B98A', dot: '#E8802E' },
+  { bg: '#33401A', fg: '#C5E08F', dot: '#8DB82E' },
+  { bg: '#262D5A', fg: '#AEB8F0', dot: '#5B6BE0' },
+  { bg: '#3D2E24', fg: '#D4B89C', dot: '#9C7353' },
 ]
