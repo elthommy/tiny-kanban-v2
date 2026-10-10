@@ -6,26 +6,7 @@ id-or-name resolution works, and that REST clients observe the changes
 (shared DB, version bump).
 """
 
-import json
-
-import pytest
-
-from .test_mcp import call_tool, rpc
-
-
-@pytest.fixture
-def seeded_client(client):
-    client.get("/api/board")  # first board read seeds the demo board
-    return client
-
-
-def tool_result(client, name: str, arguments: dict) -> dict:
-    return json.loads(call_tool(client, name, arguments)["content"][0]["text"])
-
-
-def rest_board(client) -> dict:
-    return client.get("/api/board").json()
-
+from .mcp_helpers import call_tool_error, rest_board, tool_result
 
 # --- columns -------------------------------------------------------------------
 
@@ -99,12 +80,28 @@ def test_add_card_with_description_and_position(seeded_client):
     assert board["cards"][detail["id"]]["description"] == "why not"
 
 
+def test_add_card_defaults_to_bottom(seeded_client):
+    detail = tool_result(seeded_client, "add_card", {"column": "To Do", "title": "x"})
+    assert rest_board(seeded_client)["columns"][0]["cardIds"][-1] == detail["id"]
+
+
 def test_update_card_keeps_omitted_fields(seeded_client):
     detail = tool_result(
         seeded_client, "update_card", {"card_id": "c4", "title": "New title"}
     )
     assert detail["title"] == "New title"
     assert detail["description"].startswith("Stripe events")
+    card = rest_board(seeded_client)["cards"]["c4"]
+    assert card["title"] == "New title"
+    assert card["description"].startswith("Stripe events")
+
+
+def test_update_card_description_only(seeded_client):
+    detail = tool_result(
+        seeded_client, "update_card", {"card_id": "c4", "description": "rewritten"}
+    )
+    assert detail["title"] == "Payment webhook timing out"
+    assert rest_board(seeded_client)["cards"]["c4"]["description"] == "rewritten"
 
 
 def test_set_and_clear_card_due_date(seeded_client):
@@ -132,14 +129,28 @@ def test_move_card_before_anchor(seeded_client):
     ]
 
 
+def test_move_card_to_end_without_anchor(seeded_client):
+    tool_result(seeded_client, "move_card", {"card_id": "c1", "to_column": "Blocked"})
+    cols = rest_board(seeded_client)["columns"]
+    assert cols[1]["cardIds"] == ["c4", "c5", "c1"]
+    assert "c1" not in cols[0]["cardIds"]
+
+
 def test_archive_then_restore_card(seeded_client):
     assert (
         tool_result(seeded_client, "archive_card", {"card_id": "c1"})["archived"]
         is True
     )
+    board = rest_board(seeded_client)
+    assert board["cards"]["c1"]["archived"] is True
+    assert "c1" not in board["columns"][0]["cardIds"]
+
     restored = tool_result(seeded_client, "restore_card", {"card_id": "c1"})
     assert restored["archived"] is False
     assert restored["column"] == "To Do"
+    board = rest_board(seeded_client)
+    assert board["cards"]["c1"]["archived"] is False
+    assert "c1" in board["columns"][0]["cardIds"]
 
 
 def test_delete_card(seeded_client):
@@ -157,10 +168,20 @@ def test_add_and_remove_card_label_by_name(seeded_client):
         seeded_client, "add_card_label", {"card_id": "c3", "label": "urgent"}
     )
     assert detail["labels"] == ["Urgent"]
+    assert rest_board(seeded_client)["cards"]["c3"]["labels"] == ["l6"]
     detail = tool_result(
         seeded_client, "remove_card_label", {"card_id": "c3", "label": "Urgent"}
     )
     assert detail["labels"] == []
+    assert rest_board(seeded_client)["cards"]["c3"]["labels"] == []
+
+
+def test_add_card_label_by_id(seeded_client):
+    detail = tool_result(
+        seeded_client, "add_card_label", {"card_id": "c3", "label": "l5"}
+    )
+    assert detail["labels"] == ["Backend"]
+    assert rest_board(seeded_client)["cards"]["c3"]["labels"] == ["l5"]
 
 
 def test_checklist_item_lifecycle(seeded_client):
@@ -169,6 +190,7 @@ def test_checklist_item_lifecycle(seeded_client):
     )
     item = detail["checklist"][0]
     assert (item["text"], item["done"]) == ("step", False)
+    assert rest_board(seeded_client)["cards"]["c3"]["checklist"] == [item]
 
     detail = tool_result(
         seeded_client,
@@ -177,11 +199,24 @@ def test_checklist_item_lifecycle(seeded_client):
     )
     assert detail["checklist"][0]["done"] is True
     assert detail["checklist_done"] == 1
+    assert rest_board(seeded_client)["cards"]["c3"]["checklist"][0]["done"] is True
+
+    detail = tool_result(
+        seeded_client,
+        "update_checklist_item",
+        {"card_id": "c3", "item_id": item["id"], "text": "renamed"},
+    )
+    assert (detail["checklist"][0]["text"], detail["checklist"][0]["done"]) == (
+        "renamed",
+        True,
+    )
+    assert rest_board(seeded_client)["cards"]["c3"]["checklist"][0]["text"] == "renamed"
 
     detail = tool_result(
         seeded_client, "delete_checklist_item", {"card_id": "c3", "item_id": item["id"]}
     )
     assert detail["checklist"] == []
+    assert rest_board(seeded_client)["cards"]["c3"]["checklist"] == []
 
 
 # --- labels ----------------------------------------------------------------------
@@ -201,22 +236,55 @@ def test_label_lifecycle(seeded_client):
 
 
 def test_unknown_column_name_reports_tool_error(seeded_client):
-    body = rpc(
-        seeded_client,
-        "tools/call",
-        {"name": "add_card", "arguments": {"column": "Nowhere", "title": "x"}},
+    message = call_tool_error(
+        seeded_client, "add_card", {"column": "Nowhere", "title": "x"}
     )
-    assert body["result"]["isError"] is True
+    assert "unknown column 'Nowhere'" in message
 
 
 def test_moving_archived_card_reports_tool_error(seeded_client):
     tool_result(seeded_client, "archive_card", {"card_id": "c1"})
-    body = rpc(
-        seeded_client,
-        "tools/call",
-        {"name": "move_card", "arguments": {"card_id": "c1", "to_column": "Done"}},
+    message = call_tool_error(
+        seeded_client, "move_card", {"card_id": "c1", "to_column": "Done"}
     )
-    assert body["result"]["isError"] is True
+    assert "is archived" in message
+
+
+def test_ambiguous_column_name_reports_tool_error(seeded_client):
+    tool_result(seeded_client, "add_column", {"title": "To Do"})
+    message = call_tool_error(
+        seeded_client, "add_card", {"column": "to do", "title": "x"}
+    )
+    assert "column name 'to do' is ambiguous, use its id" in message
+
+
+def test_ambiguous_label_name_reports_tool_error(seeded_client):
+    tool_result(seeded_client, "create_label", {"name": "bug"})  # seed has "Bug"
+    message = call_tool_error(
+        seeded_client, "add_card_label", {"card_id": "c3", "label": "Bug"}
+    )
+    assert "label name 'Bug' is ambiguous, use its id" in message
+
+
+def test_invalid_due_date_reports_tool_error(seeded_client):
+    message = call_tool_error(
+        seeded_client, "set_card_due_date", {"card_id": "c2", "due_date": "tomorrow"}
+    )
+    assert "invalid due date 'tomorrow', expected YYYY-MM-DD" in message
+
+
+def test_unknown_checklist_item_reports_tool_error(seeded_client):
+    message = call_tool_error(
+        seeded_client,
+        "update_checklist_item",
+        {"card_id": "c3", "item_id": "nope", "done": True},
+    )
+    assert "unknown checklist item 'nope' on card 'c3'" in message
+
+
+def test_unknown_card_on_write_reports_tool_error(seeded_client):
+    message = call_tool_error(seeded_client, "archive_card", {"card_id": "nope"})
+    assert "unknown card 'nope'" in message
 
 
 def test_mcp_write_bumps_the_board_version(seeded_client):

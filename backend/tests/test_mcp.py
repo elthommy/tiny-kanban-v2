@@ -6,34 +6,7 @@ get_card_detail) — these tests prove the JSON-RPC surface works end to end.
 
 import json
 
-import pytest
-
-MCP_HEADERS = {
-    "Accept": "application/json, text/event-stream",
-    "Content-Type": "application/json",
-}
-
-
-def rpc(client, method: str, params: dict | None = None, id: int = 1):
-    payload = {"jsonrpc": "2.0", "id": id, "method": method}
-    if params is not None:
-        payload["params"] = params
-    r = client.post("/mcp", json=payload, headers=MCP_HEADERS, follow_redirects=False)
-    assert r.status_code == 200, r.text
-    return r.json()
-
-
-def call_tool(client, name: str, arguments: dict) -> dict:
-    body = rpc(client, "tools/call", {"name": name, "arguments": arguments})
-    result = body["result"]
-    assert result.get("isError") is not True, result
-    return result
-
-
-@pytest.fixture
-def seeded_client(client):
-    client.get("/api/board")
-    return client
+from .mcp_helpers import MCP_HEADERS, call_tool, call_tool_error, rpc
 
 
 def test_initialize(client):
@@ -94,6 +67,15 @@ def test_tools_list_exposes_exactly_the_expected_tools(client):
     assert names == READ_TOOLS | WRITE_TOOLS
 
 
+def test_add_card_input_schema(client):
+    # LLM clients build calls from this schema; pin the parts they rely on.
+    tools = {t["name"]: t for t in rpc(client, "tools/list")["result"]["tools"]}
+    schema = tools["add_card"]["inputSchema"]
+    assert set(schema["required"]) == {"column", "title"}
+    assert schema["properties"]["position"]["enum"] == ["top", "bottom"]
+    assert schema["properties"]["position"]["default"] == "bottom"
+
+
 def test_get_board_tool(seeded_client):
     result = call_tool(seeded_client, "get_board", {})
     board = json.loads(result["content"][0]["text"])
@@ -113,6 +95,15 @@ def test_list_cards_text_query(seeded_client):
     assert [c["id"] for c in result["structuredContent"]["result"]] == ["c4"]
 
 
+def test_list_cards_archived_filter(seeded_client):
+    call_tool(seeded_client, "archive_card", {"card_id": "c1"})
+    archived = call_tool(seeded_client, "list_cards", {"archived": True})
+    assert [c["id"] for c in archived["structuredContent"]["result"]] == ["c1"]
+    on_board = call_tool(seeded_client, "list_cards", {"archived": False})
+    ids = [c["id"] for c in on_board["structuredContent"]["result"]]
+    assert len(ids) == 8 and "c1" not in ids
+
+
 def test_get_card_tool(seeded_client):
     result = call_tool(seeded_client, "get_card", {"card_id": "c4"})
     detail = json.loads(result["content"][0]["text"])
@@ -121,12 +112,8 @@ def test_get_card_tool(seeded_client):
 
 
 def test_get_card_unknown_id_reports_tool_error(seeded_client):
-    body = rpc(
-        seeded_client,
-        "tools/call",
-        {"name": "get_card", "arguments": {"card_id": "nope"}},
-    )
-    assert body["result"]["isError"] is True
+    message = call_tool_error(seeded_client, "get_card", {"card_id": "nope"})
+    assert "unknown card 'nope'" in message
 
 
 def test_mcp_reflects_rest_mutations(seeded_client):

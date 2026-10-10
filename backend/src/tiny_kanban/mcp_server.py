@@ -10,10 +10,14 @@ Register with a client:
     claude mcp add --transport http tiny-kanban http://127.0.0.1:8000/mcp
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Literal
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
+from sqlalchemy.orm import Session
 from starlette.applications import Starlette
 
 from . import service
@@ -43,6 +47,21 @@ def build_mcp(settings: Settings) -> MCPServer:
     engine = make_engine(settings)
     session_factory = make_session_factory(engine)
 
+    @contextmanager
+    def tool_session() -> Iterator[Session]:
+        """Open a session; surface board-rule failures to the client as ToolError.
+
+        The MCP SDK hides the message of any exception that isn't a ToolError
+        (it treats it as a crash), so without this the model would only see
+        "Error executing tool <name>" and never learn why, e.g. that a name is
+        ambiguous and it should pass an id instead.
+        """
+        try:
+            with session_factory() as session:
+                yield session
+        except (service.NotFoundError, service.BoardValidationError) as exc:
+            raise ToolError(str(exc)) from exc
+
     mcp = MCPServer(
         "tiny-kanban",
         instructions=(
@@ -58,7 +77,7 @@ def build_mcp(settings: Settings) -> MCPServer:
     def get_board() -> dict:
         """The full board: ordered columns with their card ids, all cards
         (including archived ones), and the shared labels."""
-        with session_factory() as session:
+        with tool_session() as session:
             return service.get_board(session).model_dump(exclude_none=True)
 
     @mcp.tool()
@@ -74,7 +93,7 @@ def build_mcp(settings: Settings) -> MCPServer:
         column, label: match by id or name (case-insensitive).
         archived: True for archived cards only, False for board cards only.
         """
-        with session_factory() as session:
+        with tool_session() as session:
             return service.search_cards(
                 session, query=query, column=column, label=label, archived=archived
             )
@@ -82,7 +101,7 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def get_card(card_id: str) -> dict:
         """One card in full detail: text, labels, checklist, archive state."""
-        with session_factory() as session:
+        with tool_session() as session:
             return service.get_card_detail(session, card_id)
 
     # --- write tools: one per service mutation, mutate then return the result --
@@ -90,21 +109,21 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def set_board_subtitle(subtitle: str) -> dict:
         """Set the board's subtitle (shown under the app name in the header)."""
-        with session_factory() as session:
+        with tool_session() as session:
             service.set_subtitle(session, subtitle)
             return {"subtitle": subtitle}
 
     @mcp.tool()
     def add_column(title: str) -> dict:
         """Add a column at the right end of the board."""
-        with session_factory() as session:
+        with tool_session() as session:
             column_id = service.add_column(session, title)
             return {"id": column_id, "title": title}
 
     @mcp.tool()
     def rename_column(column: str, title: str) -> dict:
         """Rename a column (by id or current name)."""
-        with session_factory() as session:
+        with tool_session() as session:
             column_id = service.resolve_column_id(session, column)
             service.rename_column(session, column_id, title)
             return {"id": column_id, "title": title}
@@ -113,7 +132,7 @@ def build_mcp(settings: Settings) -> MCPServer:
     def move_column(column: str, before_column: str | None = None) -> dict:
         """Reorder the board: move a column before another one (both by id or
         name), or to the right end when before_column is omitted."""
-        with session_factory() as session:
+        with tool_session() as session:
             column_id = service.resolve_column_id(session, column)
             before_id = (
                 service.resolve_column_id(session, before_column)
@@ -126,7 +145,7 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def delete_column(column: str) -> dict:
         """Delete a column; its cards are moved to the archive, not destroyed."""
-        with session_factory() as session:
+        with tool_session() as session:
             column_id = service.resolve_column_id(session, column)
             service.delete_column(session, column_id)
             return {"deleted": column_id}
@@ -134,7 +153,7 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def archive_all_cards(column: str) -> dict:
         """Archive every card in a column; the column itself stays."""
-        with session_factory() as session:
+        with tool_session() as session:
             column_id = service.resolve_column_id(session, column)
             service.archive_all(session, column_id)
             return {"column": column_id, "archived_all": True}
@@ -143,7 +162,7 @@ def build_mcp(settings: Settings) -> MCPServer:
     def sort_column(column: str) -> dict:
         """Reorder a column's cards by label (board label order), then
         alphabetically by title inside each label. Unlabelled cards go last."""
-        with session_factory() as session:
+        with tool_session() as session:
             column_id = service.resolve_column_id(session, column)
             service.sort_column(session, column_id)
             return {"column": column_id, "sorted": True}
@@ -156,7 +175,7 @@ def build_mcp(settings: Settings) -> MCPServer:
         position: Literal["top", "bottom"] = "bottom",
     ) -> dict:
         """Create a card in a column. Returns the new card, including its id."""
-        with session_factory() as session:
+        with tool_session() as session:
             column_id = service.resolve_column_id(session, column)
             card_id = service.add_card(session, column_id, title, position, description)
             return service.get_card_detail(session, card_id)
@@ -166,7 +185,7 @@ def build_mcp(settings: Settings) -> MCPServer:
         card_id: str, title: str | None = None, description: str | None = None
     ) -> dict:
         """Change a card's title and/or description; omitted fields are kept."""
-        with session_factory() as session:
+        with tool_session() as session:
             service.update_card_text(
                 session, card_id, title=title, description=description
             )
@@ -175,7 +194,7 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def set_card_due_date(card_id: str, due_date: str | None = None) -> dict:
         """Set a card's due date ("YYYY-MM-DD"), or clear it when omitted."""
-        with session_factory() as session:
+        with tool_session() as session:
             service.set_card_due_date(session, card_id, due_date)
             return service.get_card_detail(session, card_id)
 
@@ -184,7 +203,7 @@ def build_mcp(settings: Settings) -> MCPServer:
         card_id: str, to_column: str, before_card_id: str | None = None
     ) -> dict:
         """Move a card into a column, before the given card (or to the end)."""
-        with session_factory() as session:
+        with tool_session() as session:
             column_id = service.resolve_column_id(session, to_column)
             service.move_card(session, card_id, column_id, before_card_id)
             return service.get_card_detail(session, card_id)
@@ -192,28 +211,28 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def archive_card(card_id: str) -> dict:
         """Archive a card (remove it from the board, keep it recoverable)."""
-        with session_factory() as session:
+        with tool_session() as session:
             service.archive_card(session, card_id)
             return service.get_card_detail(session, card_id)
 
     @mcp.tool()
     def restore_card(card_id: str) -> dict:
         """Restore an archived card to the column it came from (or the first one)."""
-        with session_factory() as session:
+        with tool_session() as session:
             service.restore_card(session, card_id)
             return service.get_card_detail(session, card_id)
 
     @mcp.tool()
     def delete_card(card_id: str) -> dict:
         """Permanently delete a card. Prefer archive_card unless asked to delete."""
-        with session_factory() as session:
+        with tool_session() as session:
             service.delete_card(session, card_id)
             return {"deleted": card_id}
 
     @mcp.tool()
     def add_card_label(card_id: str, label: str) -> dict:
         """Attach an existing label (by id or name) to a card."""
-        with session_factory() as session:
+        with tool_session() as session:
             label_id = service.resolve_label_id(session, label)
             service.add_card_label(session, card_id, label_id)
             return service.get_card_detail(session, card_id)
@@ -221,7 +240,7 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def remove_card_label(card_id: str, label: str) -> dict:
         """Detach a label (by id or name) from a card."""
-        with session_factory() as session:
+        with tool_session() as session:
             label_id = service.resolve_label_id(session, label)
             service.remove_card_label(session, card_id, label_id)
             return service.get_card_detail(session, card_id)
@@ -229,7 +248,7 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def add_checklist_item(card_id: str, text: str) -> dict:
         """Append an unchecked item to a card's checklist."""
-        with session_factory() as session:
+        with tool_session() as session:
             service.add_checklist_item(session, card_id, text)
             return service.get_card_detail(session, card_id)
 
@@ -238,7 +257,7 @@ def build_mcp(settings: Settings) -> MCPServer:
         card_id: str, item_id: str, done: bool | None = None, text: str | None = None
     ) -> dict:
         """Check/uncheck a checklist item and/or rewrite its text."""
-        with session_factory() as session:
+        with tool_session() as session:
             service.update_checklist_item(
                 session, card_id, item_id, done=done, text=text
             )
@@ -247,21 +266,21 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def delete_checklist_item(card_id: str, item_id: str) -> dict:
         """Remove an item from a card's checklist."""
-        with session_factory() as session:
+        with tool_session() as session:
             service.delete_checklist_item(session, card_id, item_id)
             return service.get_card_detail(session, card_id)
 
     @mcp.tool()
     def create_label(name: str) -> dict:
         """Create a board-wide label; its color is auto-picked from the palette."""
-        with session_factory() as session:
+        with tool_session() as session:
             label_id = service.add_label(session, name)
             return {"id": label_id, "name": name}
 
     @mcp.tool()
     def rename_label(label: str, name: str) -> dict:
         """Rename a label everywhere it appears (colors are managed in the UI)."""
-        with session_factory() as session:
+        with tool_session() as session:
             label_id = service.resolve_label_id(session, label)
             service.update_label(session, label_id, name=name)
             return {"id": label_id, "name": name}
@@ -269,7 +288,7 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def delete_label(label: str) -> dict:
         """Delete a label from the board and from every card that carries it."""
-        with session_factory() as session:
+        with tool_session() as session:
             label_id = service.resolve_label_id(session, label)
             service.delete_label(session, label_id)
             return {"deleted": label_id}

@@ -1,12 +1,3 @@
-import pytest
-
-
-@pytest.fixture
-def seeded_client(client):
-    client.get("/api/board")  # triggers demo-board seeding
-    return client
-
-
 def board_of(response) -> dict:
     assert response.status_code == 200, response.text
     body = response.json()

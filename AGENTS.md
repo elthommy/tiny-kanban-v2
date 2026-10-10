@@ -118,6 +118,14 @@ does not poll, so it shows MCP changes after its next structural action or a
 reload; UI text edits PATCH only their own fields, so they can't overwrite
 unrelated MCP writes.
 
+**Tool errors**: every tool opens its session with `tool_session()`, which
+re-raises `NotFoundError`/`BoardValidationError` as the SDK's `ToolError` so the
+model reads the reason (e.g. "column name 'to do' is ambiguous, use its id").
+Any other exception is treated by the SDK as a crash and reaches the client as
+a bare "Error executing tool <name>". New tools must use `tool_session()`; test
+failures with `call_tool_error` (`tests/mcp_helpers.py`), which asserts the
+reason is present.
+
 ### Frontend contract
 
 `frontend/src/api.ts` is the only file talking to the backend:
