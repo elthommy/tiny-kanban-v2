@@ -48,6 +48,13 @@ def client(settings: Settings) -> Iterator[TestClient]:
         yield c
 
 
+@pytest.fixture
+def seeded_client(client: TestClient) -> TestClient:
+    """Full-app client whose DB holds the demo board (first read seeds it)."""
+    client.get("/api/board")
+    return client
+
+
 # --- payload builders -------------------------------------------------------
 
 

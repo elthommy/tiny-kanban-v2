@@ -6,34 +6,7 @@ get_card_detail) — these tests prove the JSON-RPC surface works end to end.
 
 import json
 
-import pytest
-
-MCP_HEADERS = {
-    "Accept": "application/json, text/event-stream",
-    "Content-Type": "application/json",
-}
-
-
-def rpc(client, method: str, params: dict | None = None, id: int = 1):
-    payload = {"jsonrpc": "2.0", "id": id, "method": method}
-    if params is not None:
-        payload["params"] = params
-    r = client.post("/mcp", json=payload, headers=MCP_HEADERS, follow_redirects=False)
-    assert r.status_code == 200, r.text
-    return r.json()
-
-
-def call_tool(client, name: str, arguments: dict) -> dict:
-    body = rpc(client, "tools/call", {"name": name, "arguments": arguments})
-    result = body["result"]
-    assert result.get("isError") is not True, result
-    return result
-
-
-@pytest.fixture
-def seeded_client(client):
-    client.get("/api/board")
-    return client
+from .mcp_helpers import MCP_HEADERS, call_tool, call_tool_error, rpc
 
 
 def test_initialize(client):
@@ -121,13 +94,8 @@ def test_get_card_tool(seeded_client):
 
 
 def test_get_card_unknown_id_reports_tool_error(seeded_client):
-    body = rpc(
-        seeded_client,
-        "tools/call",
-        {"name": "get_card", "arguments": {"card_id": "nope"}},
-    )
-    assert body["result"]["isError"] is True
-    assert "unknown card 'nope'" in body["result"]["content"][0]["text"]
+    message = call_tool_error(seeded_client, "get_card", {"card_id": "nope"})
+    assert "unknown card 'nope'" in message
 
 
 def test_mcp_reflects_rest_mutations(seeded_client):

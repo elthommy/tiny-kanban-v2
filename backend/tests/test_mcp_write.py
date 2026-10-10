@@ -6,26 +6,7 @@ id-or-name resolution works, and that REST clients observe the changes
 (shared DB, version bump).
 """
 
-import json
-
-import pytest
-
-from .test_mcp import call_tool, rpc
-
-
-@pytest.fixture
-def seeded_client(client):
-    client.get("/api/board")  # first board read seeds the demo board
-    return client
-
-
-def tool_result(client, name: str, arguments: dict) -> dict:
-    return json.loads(call_tool(client, name, arguments)["content"][0]["text"])
-
-
-def rest_board(client) -> dict:
-    return client.get("/api/board").json()
-
+from .mcp_helpers import call_tool_error, rest_board, tool_result
 
 # --- columns -------------------------------------------------------------------
 
@@ -201,24 +182,18 @@ def test_label_lifecycle(seeded_client):
 
 
 def test_unknown_column_name_reports_tool_error(seeded_client):
-    body = rpc(
-        seeded_client,
-        "tools/call",
-        {"name": "add_card", "arguments": {"column": "Nowhere", "title": "x"}},
+    message = call_tool_error(
+        seeded_client, "add_card", {"column": "Nowhere", "title": "x"}
     )
-    assert body["result"]["isError"] is True
-    assert "unknown column 'Nowhere'" in body["result"]["content"][0]["text"]
+    assert "unknown column 'Nowhere'" in message
 
 
 def test_moving_archived_card_reports_tool_error(seeded_client):
     tool_result(seeded_client, "archive_card", {"card_id": "c1"})
-    body = rpc(
-        seeded_client,
-        "tools/call",
-        {"name": "move_card", "arguments": {"card_id": "c1", "to_column": "Done"}},
+    message = call_tool_error(
+        seeded_client, "move_card", {"card_id": "c1", "to_column": "Done"}
     )
-    assert body["result"]["isError"] is True
-    assert "is archived" in body["result"]["content"][0]["text"]
+    assert "is archived" in message
 
 
 def test_mcp_write_bumps_the_board_version(seeded_client):
