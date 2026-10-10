@@ -80,12 +80,28 @@ def test_add_card_with_description_and_position(seeded_client):
     assert board["cards"][detail["id"]]["description"] == "why not"
 
 
+def test_add_card_defaults_to_bottom(seeded_client):
+    detail = tool_result(seeded_client, "add_card", {"column": "To Do", "title": "x"})
+    assert rest_board(seeded_client)["columns"][0]["cardIds"][-1] == detail["id"]
+
+
 def test_update_card_keeps_omitted_fields(seeded_client):
     detail = tool_result(
         seeded_client, "update_card", {"card_id": "c4", "title": "New title"}
     )
     assert detail["title"] == "New title"
     assert detail["description"].startswith("Stripe events")
+    card = rest_board(seeded_client)["cards"]["c4"]
+    assert card["title"] == "New title"
+    assert card["description"].startswith("Stripe events")
+
+
+def test_update_card_description_only(seeded_client):
+    detail = tool_result(
+        seeded_client, "update_card", {"card_id": "c4", "description": "rewritten"}
+    )
+    assert detail["title"] == "Payment webhook timing out"
+    assert rest_board(seeded_client)["cards"]["c4"]["description"] == "rewritten"
 
 
 def test_set_and_clear_card_due_date(seeded_client):
@@ -113,14 +129,28 @@ def test_move_card_before_anchor(seeded_client):
     ]
 
 
+def test_move_card_to_end_without_anchor(seeded_client):
+    tool_result(seeded_client, "move_card", {"card_id": "c1", "to_column": "Blocked"})
+    cols = rest_board(seeded_client)["columns"]
+    assert cols[1]["cardIds"] == ["c4", "c5", "c1"]
+    assert "c1" not in cols[0]["cardIds"]
+
+
 def test_archive_then_restore_card(seeded_client):
     assert (
         tool_result(seeded_client, "archive_card", {"card_id": "c1"})["archived"]
         is True
     )
+    board = rest_board(seeded_client)
+    assert board["cards"]["c1"]["archived"] is True
+    assert "c1" not in board["columns"][0]["cardIds"]
+
     restored = tool_result(seeded_client, "restore_card", {"card_id": "c1"})
     assert restored["archived"] is False
     assert restored["column"] == "To Do"
+    board = rest_board(seeded_client)
+    assert board["cards"]["c1"]["archived"] is False
+    assert "c1" in board["columns"][0]["cardIds"]
 
 
 def test_delete_card(seeded_client):
@@ -138,10 +168,20 @@ def test_add_and_remove_card_label_by_name(seeded_client):
         seeded_client, "add_card_label", {"card_id": "c3", "label": "urgent"}
     )
     assert detail["labels"] == ["Urgent"]
+    assert rest_board(seeded_client)["cards"]["c3"]["labels"] == ["l6"]
     detail = tool_result(
         seeded_client, "remove_card_label", {"card_id": "c3", "label": "Urgent"}
     )
     assert detail["labels"] == []
+    assert rest_board(seeded_client)["cards"]["c3"]["labels"] == []
+
+
+def test_add_card_label_by_id(seeded_client):
+    detail = tool_result(
+        seeded_client, "add_card_label", {"card_id": "c3", "label": "l5"}
+    )
+    assert detail["labels"] == ["Backend"]
+    assert rest_board(seeded_client)["cards"]["c3"]["labels"] == ["l5"]
 
 
 def test_checklist_item_lifecycle(seeded_client):
@@ -150,6 +190,7 @@ def test_checklist_item_lifecycle(seeded_client):
     )
     item = detail["checklist"][0]
     assert (item["text"], item["done"]) == ("step", False)
+    assert rest_board(seeded_client)["cards"]["c3"]["checklist"] == [item]
 
     detail = tool_result(
         seeded_client,
@@ -158,11 +199,24 @@ def test_checklist_item_lifecycle(seeded_client):
     )
     assert detail["checklist"][0]["done"] is True
     assert detail["checklist_done"] == 1
+    assert rest_board(seeded_client)["cards"]["c3"]["checklist"][0]["done"] is True
+
+    detail = tool_result(
+        seeded_client,
+        "update_checklist_item",
+        {"card_id": "c3", "item_id": item["id"], "text": "renamed"},
+    )
+    assert (detail["checklist"][0]["text"], detail["checklist"][0]["done"]) == (
+        "renamed",
+        True,
+    )
+    assert rest_board(seeded_client)["cards"]["c3"]["checklist"][0]["text"] == "renamed"
 
     detail = tool_result(
         seeded_client, "delete_checklist_item", {"card_id": "c3", "item_id": item["id"]}
     )
     assert detail["checklist"] == []
+    assert rest_board(seeded_client)["cards"]["c3"]["checklist"] == []
 
 
 # --- labels ----------------------------------------------------------------------

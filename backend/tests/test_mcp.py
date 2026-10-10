@@ -67,6 +67,15 @@ def test_tools_list_exposes_exactly_the_expected_tools(client):
     assert names == READ_TOOLS | WRITE_TOOLS
 
 
+def test_add_card_input_schema(client):
+    # LLM clients build calls from this schema; pin the parts they rely on.
+    tools = {t["name"]: t for t in rpc(client, "tools/list")["result"]["tools"]}
+    schema = tools["add_card"]["inputSchema"]
+    assert set(schema["required"]) == {"column", "title"}
+    assert schema["properties"]["position"]["enum"] == ["top", "bottom"]
+    assert schema["properties"]["position"]["default"] == "bottom"
+
+
 def test_get_board_tool(seeded_client):
     result = call_tool(seeded_client, "get_board", {})
     board = json.loads(result["content"][0]["text"])
@@ -84,6 +93,15 @@ def test_list_cards_with_filters(seeded_client):
 def test_list_cards_text_query(seeded_client):
     result = call_tool(seeded_client, "list_cards", {"query": "stripe"})
     assert [c["id"] for c in result["structuredContent"]["result"]] == ["c4"]
+
+
+def test_list_cards_archived_filter(seeded_client):
+    call_tool(seeded_client, "archive_card", {"card_id": "c1"})
+    archived = call_tool(seeded_client, "list_cards", {"archived": True})
+    assert [c["id"] for c in archived["structuredContent"]["result"]] == ["c1"]
+    on_board = call_tool(seeded_client, "list_cards", {"archived": False})
+    ids = [c["id"] for c in on_board["structuredContent"]["result"]]
+    assert len(ids) == 8 and "c1" not in ids
 
 
 def test_get_card_tool(seeded_client):
