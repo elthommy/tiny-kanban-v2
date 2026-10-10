@@ -31,7 +31,10 @@ def call_tool_error(client, name: str, arguments: dict) -> str:
     body = rpc(client, "tools/call", {"name": name, "arguments": arguments})
     result = body["result"]
     assert result.get("isError") is True, result
-    return result["content"][0]["text"]
+    message = result["content"][0]["text"]
+    # The SDK's bare crash text means the reason was swallowed (see tool_session).
+    assert message != f"Error executing tool {name}", "error reason was hidden"
+    return message
 
 
 def tool_result(client, name: str, arguments: dict) -> dict:

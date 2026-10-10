@@ -196,6 +196,43 @@ def test_moving_archived_card_reports_tool_error(seeded_client):
     assert "is archived" in message
 
 
+def test_ambiguous_column_name_reports_tool_error(seeded_client):
+    tool_result(seeded_client, "add_column", {"title": "To Do"})
+    message = call_tool_error(
+        seeded_client, "add_card", {"column": "to do", "title": "x"}
+    )
+    assert "column name 'to do' is ambiguous, use its id" in message
+
+
+def test_ambiguous_label_name_reports_tool_error(seeded_client):
+    tool_result(seeded_client, "create_label", {"name": "bug"})  # seed has "Bug"
+    message = call_tool_error(
+        seeded_client, "add_card_label", {"card_id": "c3", "label": "Bug"}
+    )
+    assert "label name 'Bug' is ambiguous, use its id" in message
+
+
+def test_invalid_due_date_reports_tool_error(seeded_client):
+    message = call_tool_error(
+        seeded_client, "set_card_due_date", {"card_id": "c2", "due_date": "tomorrow"}
+    )
+    assert "invalid due date 'tomorrow', expected YYYY-MM-DD" in message
+
+
+def test_unknown_checklist_item_reports_tool_error(seeded_client):
+    message = call_tool_error(
+        seeded_client,
+        "update_checklist_item",
+        {"card_id": "c3", "item_id": "nope", "done": True},
+    )
+    assert "unknown checklist item 'nope' on card 'c3'" in message
+
+
+def test_unknown_card_on_write_reports_tool_error(seeded_client):
+    message = call_tool_error(seeded_client, "archive_card", {"card_id": "nope"})
+    assert "unknown card 'nope'" in message
+
+
 def test_mcp_write_bumps_the_board_version(seeded_client):
     before = seeded_client.get("/api/board").headers["etag"]
     tool_result(seeded_client, "add_column", {"title": "Bump"})
