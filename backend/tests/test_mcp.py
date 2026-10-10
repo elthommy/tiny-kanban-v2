@@ -127,6 +127,7 @@ def test_get_card_unknown_id_reports_tool_error(seeded_client):
         {"name": "get_card", "arguments": {"card_id": "nope"}},
     )
     assert body["result"]["isError"] is True
+    assert "unknown card 'nope'" in body["result"]["content"][0]["text"]
 
 
 def test_mcp_reflects_rest_mutations(seeded_client):

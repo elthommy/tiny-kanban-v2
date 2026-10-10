@@ -207,6 +207,7 @@ def test_unknown_column_name_reports_tool_error(seeded_client):
         {"name": "add_card", "arguments": {"column": "Nowhere", "title": "x"}},
     )
     assert body["result"]["isError"] is True
+    assert "unknown column 'Nowhere'" in body["result"]["content"][0]["text"]
 
 
 def test_moving_archived_card_reports_tool_error(seeded_client):
@@ -217,6 +218,7 @@ def test_moving_archived_card_reports_tool_error(seeded_client):
         {"name": "move_card", "arguments": {"card_id": "c1", "to_column": "Done"}},
     )
     assert body["result"]["isError"] is True
+    assert "is archived" in body["result"]["content"][0]["text"]
 
 
 def test_mcp_write_bumps_the_board_version(seeded_client):
