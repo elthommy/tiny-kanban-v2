@@ -14,9 +14,23 @@ LLM clients can query **and update** the board:
 claude mcp add --transport http tiny-kanban http://127.0.0.1:8000/mcp
 ```
 ## Dashboard
-![Screenshot](./doc/screenshots/tiny-kanban-v2_dashboard.png)
+![Board with labels, checklist progress and due-date badges (overdue, due soon, upcoming)](./doc/screenshots/tiny-kanban-v2_dashboard.png)
 ## Card
-![Screenshot](./doc/screenshots/tiny-kanban-v2_card.png)
+![Card details: labels, due date, description and checklist](./doc/screenshots/tiny-kanban-v2_card.png)
+
+<details>
+<summary>More screenshots</summary>
+
+### Label editor
+![Board-wide label editor: rename, recolor, delete, add](./doc/screenshots/tiny-kanban-v2_labels.png)
+
+### Column menu
+![Column menu: add a card, sort by label, archive all cards, delete column](./doc/screenshots/tiny-kanban-v2_column-menu.png)
+
+### Archive
+![Archived cards with search, restore to original column, or delete](./doc/screenshots/tiny-kanban-v2_archive.png)
+
+</details>
 
 ## Quick start
 
