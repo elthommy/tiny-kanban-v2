@@ -70,6 +70,8 @@ def make_card(id: str = "c1", title: str = "A card", **overrides) -> dict:
         "checklist": [],
         "description": "",
         "archived": False,
+        "dependsOn": [],
+        "blocks": [],
     }
     card.update(overrides)
     return card

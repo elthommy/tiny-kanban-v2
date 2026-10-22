@@ -549,3 +549,156 @@ def test_replace_board_without_subtitle_keeps_stored_one(seeded):
     b.subtitle = None  # pre-subtitle exports omit the field
     service.replace_board(seeded, b)
     assert service.get_subtitle(seeded) == "Custom"
+
+
+# --- card dependencies -------------------------------------------------------------
+
+
+def deps(session, card_id: str) -> list[tuple[str, bool]]:
+    return [(d.cardId, d.resolved) for d in board(session).cards[card_id].dependsOn]
+
+
+def test_add_card_dependency_appends_in_order(seeded):
+    service.add_card_dependency(seeded, "c1", "c2")
+    service.add_card_dependency(seeded, "c1", "c4")
+    assert [d for d, _ in deps(seeded, "c1")] == ["c2", "c4"]
+
+
+def test_add_existing_dependency_is_noop(seeded):
+    service.add_card_dependency(seeded, "c1", "c2")
+    version = service.get_version(seeded)
+    service.add_card_dependency(seeded, "c1", "c2")
+    assert deps(seeded, "c1") == [("c2", False)]
+    assert service.get_version(seeded) == version
+
+
+def test_blocks_lists_dependent_cards(seeded):
+    service.add_card_dependency(seeded, "c1", "c4")
+    service.add_card_dependency(seeded, "c2", "c4")
+    assert board(seeded).cards["c4"].blocks == ["c1", "c2"]
+    assert board(seeded).cards["c1"].blocks == []
+
+
+def test_dependency_resolved_when_prerequisite_in_last_column(seeded):
+    service.add_card_dependency(seeded, "c1", "c8")  # c8 sits in col4 "Done"
+    service.add_card_dependency(seeded, "c1", "c4")
+    assert deps(seeded, "c1") == [("c8", True), ("c4", False)]
+
+
+def test_dependency_resolved_when_prerequisite_archived(seeded):
+    service.add_card_dependency(seeded, "c1", "c4")
+    service.archive_card(seeded, "c4")
+    assert deps(seeded, "c1") == [("c4", True)]
+
+
+def test_dependency_resolution_follows_column_order(seeded):
+    service.add_card_dependency(seeded, "c1", "c8")
+    service.move_column(seeded, "col4", "col1")  # "Done" is no longer last
+    assert deps(seeded, "c1") == [("c8", False)]
+    service.move_card(seeded, "c8", "col3")  # col3 is now the last column
+    assert deps(seeded, "c1") == [("c8", True)]
+
+
+def test_self_dependency_rejected(seeded):
+    with pytest.raises(BoardValidationError, match="itself"):
+        service.add_card_dependency(seeded, "c1", "c1")
+
+
+def test_direct_cycle_rejected(seeded):
+    service.add_card_dependency(seeded, "c1", "c2")
+    with pytest.raises(BoardValidationError, match="cycle"):
+        service.add_card_dependency(seeded, "c2", "c1")
+
+
+def test_indirect_cycle_rejected(seeded):
+    service.add_card_dependency(seeded, "c1", "c2")
+    service.add_card_dependency(seeded, "c2", "c3")
+    with pytest.raises(BoardValidationError, match="cycle"):
+        service.add_card_dependency(seeded, "c3", "c1")
+    assert deps(seeded, "c3") == []
+
+
+def test_shared_prerequisite_is_not_a_cycle(seeded):
+    service.add_card_dependency(seeded, "c1", "c3")
+    service.add_card_dependency(seeded, "c2", "c3")
+    service.add_card_dependency(seeded, "c1", "c2")
+    assert [d for d, _ in deps(seeded, "c1")] == ["c3", "c2"]
+
+
+def test_card_dependency_unknown_ids_404(seeded):
+    with pytest.raises(NotFoundError):
+        service.add_card_dependency(seeded, "nope", "c1")
+    with pytest.raises(NotFoundError):
+        service.add_card_dependency(seeded, "c1", "nope")
+    with pytest.raises(NotFoundError):
+        service.remove_card_dependency(seeded, "c1", "nope")
+
+
+def test_remove_card_dependency(seeded):
+    service.add_card_dependency(seeded, "c1", "c2")
+    service.remove_card_dependency(seeded, "c1", "c2")
+    assert deps(seeded, "c1") == []
+    assert board(seeded).cards["c2"].blocks == []
+    service.remove_card_dependency(seeded, "c1", "c2")  # absent link: no-op
+
+
+def test_delete_card_removes_its_dependency_links(seeded):
+    service.add_card_dependency(seeded, "c1", "c2")
+    service.add_card_dependency(seeded, "c2", "c3")
+    service.delete_card(seeded, "c2")
+    assert deps(seeded, "c1") == []
+    assert board(seeded).cards["c3"].blocks == []
+
+
+def test_replace_board_round_trips_dependencies(session):
+    payload = simple_board()
+    payload["cards"]["c1"]["dependsOn"] = [{"cardId": "c2"}]
+    service.replace_board(session, BoardData.model_validate(payload))
+    b = board(session)
+    assert b.cards["c1"].dependsOn[0].cardId == "c2"
+    assert b.cards["c2"].blocks == ["c1"]
+
+
+def test_replace_board_accepts_cards_without_dependency_fields(session):
+    payload = simple_board()
+    for card in payload["cards"].values():
+        del card["dependsOn"], card["blocks"]
+    service.replace_board(session, BoardData.model_validate(payload))
+    assert board(session).cards["c1"].dependsOn == []
+
+
+@pytest.mark.parametrize(
+    "c1_deps, c2_deps, message",
+    [
+        ([{"cardId": "ghost"}], [], "unknown card"),
+        ([{"cardId": "c1"}], [], "itself"),
+        ([{"cardId": "c2"}, {"cardId": "c2"}], [], "duplicate dependency"),
+        ([{"cardId": "c2"}], [{"cardId": "c1"}], "cycle"),
+    ],
+)
+def test_replace_board_invalid_dependencies_rejected(
+    session, c1_deps, c2_deps, message
+):
+    payload = simple_board()
+    payload["cards"]["c1"]["dependsOn"] = c1_deps
+    payload["cards"]["c2"]["dependsOn"] = c2_deps
+    with pytest.raises(BoardValidationError, match=message):
+        service.replace_board(session, BoardData.model_validate(payload))
+
+
+def test_search_cards_blocked_filter(seeded):
+    service.add_card_dependency(seeded, "c1", "c4")  # open
+    service.add_card_dependency(seeded, "c2", "c8")  # resolved (Done column)
+    blocked = {c["id"] for c in service.search_cards(seeded, blocked=True)}
+    assert blocked == {"c1"}
+    assert "c2" in {c["id"] for c in service.search_cards(seeded, blocked=False)}
+
+
+def test_card_detail_lists_dependencies_and_blocks(seeded):
+    service.add_card_dependency(seeded, "c1", "c4")
+    detail = service.get_card_detail(seeded, "c4")
+    assert detail["blocks"] == [{"id": "c1", "title": board(seeded).cards["c1"].title}]
+    summary = service.get_card_detail(seeded, "c1")
+    assert summary["blocked"] is True
+    assert summary["depends_on"][0]["id"] == "c4"
+    assert summary["depends_on"][0]["resolved"] is False

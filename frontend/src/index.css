@@ -834,6 +834,71 @@ textarea {
 .add-check {
   margin-bottom: 22px;
 }
+.dep-status {
+  width: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #d06b49;
+  flex: 0 0 auto;
+}
+.dep-status.resolved {
+  color: #6fbf73;
+}
+.dep-link {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: #eceaf2;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dep-link:hover {
+  color: #d06b49;
+}
+.dep-link.done {
+  color: #6e6a78;
+  text-decoration: line-through;
+}
+.dep-where {
+  font-size: 11px;
+  color: #6e6a78;
+  flex: 0 0 auto;
+}
+.dep-select {
+  cursor: pointer;
+  color-scheme: dark;
+}
+.dep-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #211f26;
+  color: #8b8698;
+}
+.dep-badge:first-child,
+.card-title + .dep-badge {
+  margin-left: 0;
+}
+.dep-badge.open {
+  background: #42291f;
+  color: #d06b49;
+}
+.dep-icon {
+  font-size: 10px;
+}
 .modal-footer {
   display: flex;
   justify-content: space-between;

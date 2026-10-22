@@ -194,6 +194,24 @@ def remove_card_label(
     return board_response(session)
 
 
+@router.put("/cards/{card_id}/dependencies/{depends_on_id}")
+def add_card_dependency(
+    card_id: str, depends_on_id: str, session: Session = Depends(get_session)
+) -> JSONResponse:
+    """Make the card depend on another card (422 on self-links and cycles)."""
+    service.add_card_dependency(session, card_id, depends_on_id)
+    return board_response(session)
+
+
+@router.delete("/cards/{card_id}/dependencies/{depends_on_id}")
+def remove_card_dependency(
+    card_id: str, depends_on_id: str, session: Session = Depends(get_session)
+) -> JSONResponse:
+    """Remove a dependency link between two cards."""
+    service.remove_card_dependency(session, card_id, depends_on_id)
+    return board_response(session)
+
+
 @router.post("/cards/{card_id}/checklist")
 def create_checklist_item(
     card_id: str, body: schemas.ChecklistCreate, session: Session = Depends(get_session)

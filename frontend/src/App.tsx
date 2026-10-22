@@ -222,6 +222,9 @@ function KanbanApp({ initial }: { initial: BoardData }) {
       api.patchCheckItemText(openCard.id, itemId, text)
     },
     deleteCheckItem: (itemId) => openCard && apply(api.deleteCheckItem(openCard.id, itemId)),
+    addDependency: (dependsOnId) => openCard && apply(api.addCardDependency(openCard.id, dependsOnId)),
+    removeDependency: (dependsOnId) => openCard && apply(api.removeCardDependency(openCard.id, dependsOnId)),
+    openCard: (cardId) => setOpenCardId(cardId),
     archiveCard: () => {
       if (!openCardId) return
       apply(api.archiveCard(openCardId))
@@ -360,6 +363,8 @@ function KanbanApp({ initial }: { initial: BoardData }) {
       {openCard && (
         <CardModal
           card={openCard}
+          cards={data.cards}
+          columns={data.columns}
           labels={data.labels}
           labelEditorOpen={labelEditorOpen}
           colorPickerLabel={colorPickerLabel}

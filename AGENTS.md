@@ -48,7 +48,7 @@ gitignored).
   (`seed.py`); a `meta` table flag ensures a deliberately emptied board is
   never re-seeded. `meta` also stores the **board version** (see ETag below).
 - Tables: `columns`, `cards`, `labels`, `card_labels`, `checklist_items`,
-  `meta` — ordering via `position` columns, string ids, FKs cascade on delete.
+  `card_dependencies`, `meta` — ordering via `position` columns, string ids, FKs cascade on delete.
 - Legacy note: pre-backend boards lived in browser `localStorage`; on first
   load the frontend PUTs any such board to the backend, then renames the key.
 
@@ -79,6 +79,7 @@ in `main.py` for `NotFoundError` / `BoardValidationError`).
 | Columns | `POST /api/columns` · `PATCH·DELETE /api/columns/{id}` · `POST …/move` · `POST …/sort` · `POST …/archive-all` · `POST …/cards` |
 | Cards | `PATCH·DELETE /api/cards/{id}` · `POST …/move` · `POST …/archive` · `POST …/restore` · `PUT …/due-date` |
 | Card labels | `PUT·DELETE /api/cards/{id}/labels/{labelId}` |
+| Card dependencies | `PUT·DELETE /api/cards/{id}/dependencies/{dependsOnId}` |
 | Checklist | `POST /api/cards/{id}/checklist` · `PATCH·DELETE …/checklist/{itemId}` |
 | Labels | `POST /api/labels` · `PATCH·DELETE /api/labels/{id}` |
 
@@ -96,8 +97,8 @@ claude mcp add --transport http tiny-kanban http://127.0.0.1:8000/mcp
 
 All tools are thin wrappers over `service.py` — one tool per query/mutation:
 
-- **Read**: `get_board` · `list_cards(query?, column?, label?, archived?)` ·
-  `get_card(card_id)`
+- **Read**: `get_board` · `list_cards(query?, column?, label?, archived?, blocked?)` ·
+  `get_card(card_id)` (incl. `depends_on` + `blocks`)
 - **Board**: `set_board_subtitle` (header subtitle, stored in `meta`)
 - **Columns**: `add_column` · `rename_column` · `move_column` (reorder) ·
   `delete_column` (cards → archive) · `sort_column` (by label, then title) ·
@@ -105,6 +106,7 @@ All tools are thin wrappers over `service.py` — one tool per query/mutation:
 - **Cards**: `add_card` (title, description, top/bottom) · `update_card` ·
   `set_card_due_date` ("YYYY-MM-DD", omit to clear) · `move_card` ·
   `archive_card` · `restore_card` · `delete_card`
+- **Card dependencies**: `add_card_dependency` · `remove_card_dependency`
 - **Card labels / checklist**: `add_card_label` · `remove_card_label` ·
   `add_checklist_item` · `update_checklist_item` · `delete_checklist_item`
 - **Labels**: `create_label` (palette color auto-picked) · `rename_label` ·
@@ -125,6 +127,16 @@ Any other exception is treated by the SDK as a crash and reaches the client as
 a bare "Error executing tool <name>". New tools must use `tool_session()`; test
 failures with `call_tool_error` (`tests/mcp_helpers.py`), which asserts the
 reason is present.
+
+### Card dependencies
+
+`card_dependencies(card_id, depends_on_id, position)`: "card_id depends on
+depends_on_id". Rules in `service.py`: no self-links, no cycles (checked on add
+and on `PUT /api/board` import → 422), duplicates are no-ops, both FKs cascade
+on card delete. A prerequisite is **resolved** when it is archived or sits in
+the **rightmost column** (`_is_resolved`). It is a soft rule: blocked cards can
+still be moved. In the board payload, `dependsOn[].resolved` and `blocks` are
+computed by `get_board` and ignored on import.
 
 ### Frontend contract
 
@@ -192,7 +204,12 @@ Migrations run automatically at startup; users never run Alembic by hand.
 
 Done: SQLite + Alembic (Phase 1) · per-resource API, rules in `service.py`,
 board version/ETag, MCP at `/mcp` (Phase 2) · MCP write tools · due dates
-(`cards.due_date`, ISO "YYYY-MM-DD") · column reordering · column sort by label.
+(`cards.due_date`, ISO "YYYY-MM-DD") · column reordering · column sort by label ·
+card dependencies (`card_dependencies`, soft rule).
 
-Next ideas: card dependencies (`card_dependencies` table + FK cascade) — each
-lands as an Alembic migration.
+Next ideas:
+- "Sync failed" banner should show the backend's reason: 404/422 bodies carry
+  a `detail` message (e.g. "that would create a dependency cycle") that
+  `api.ts` currently drops, so the user never learns why an action was refused.
+- Optional hard dependency rule (refuse moving a blocked card into the last
+  column) — would be one check in `move_card`.

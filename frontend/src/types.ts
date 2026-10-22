@@ -12,6 +12,11 @@ export interface ChecklistItem {
   done: boolean
 }
 
+export interface Dependency {
+  cardId: string // the prerequisite card
+  resolved: boolean // computed by the backend: prerequisite archived or in the last column
+}
+
 export interface Card {
   id: string
   title: string
@@ -22,6 +27,8 @@ export interface Card {
   archivedFrom?: string | null
   archivedAt?: number
   dueDate?: string // ISO date "YYYY-MM-DD"
+  dependsOn: Dependency[]
+  blocks: string[] // computed by the backend: ids of cards depending on this one
 }
 
 export interface Column {

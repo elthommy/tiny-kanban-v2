@@ -218,6 +218,44 @@ def test_checklist_item_of_other_card_404(seeded_client):
     )
 
 
+# --- card dependencies ------------------------------------------------------------------
+
+
+def test_dependency_endpoints(seeded_client):
+    b = board_of(seeded_client.put("/api/cards/c1/dependencies/c4"))
+    assert b["cards"]["c1"]["dependsOn"] == [{"cardId": "c4", "resolved": False}]
+    assert b["cards"]["c4"]["blocks"] == ["c1"]
+    b = board_of(seeded_client.delete("/api/cards/c1/dependencies/c4"))
+    assert b["cards"]["c1"]["dependsOn"] == []
+    assert b["cards"]["c4"]["blocks"] == []
+
+
+def test_dependency_on_done_card_is_resolved(seeded_client):
+    b = board_of(seeded_client.put("/api/cards/c1/dependencies/c8"))
+    assert b["cards"]["c1"]["dependsOn"] == [{"cardId": "c8", "resolved": True}]
+
+
+def test_dependency_404s(seeded_client):
+    assert seeded_client.put("/api/cards/c1/dependencies/nope").status_code == 404
+    assert seeded_client.put("/api/cards/nope/dependencies/c1").status_code == 404
+    assert seeded_client.delete("/api/cards/c1/dependencies/nope").status_code == 404
+
+
+def test_dependency_rule_violations_422(seeded_client):
+    assert seeded_client.put("/api/cards/c1/dependencies/c1").status_code == 422
+    board_of(seeded_client.put("/api/cards/c1/dependencies/c2"))
+    r = seeded_client.put("/api/cards/c2/dependencies/c1")
+    assert r.status_code == 422
+    assert "cycle" in r.text
+
+
+def test_put_board_with_dependency_cycle_422(seeded_client):
+    board = seeded_client.get("/api/board").json()
+    board["cards"]["c1"]["dependsOn"] = [{"cardId": "c2"}]
+    board["cards"]["c2"]["dependsOn"] = [{"cardId": "c1"}]
+    assert seeded_client.put("/api/board", json=board).status_code == 422
+
+
 # --- labels ------------------------------------------------------------------------------
 
 

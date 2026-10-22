@@ -19,6 +19,7 @@ from .schemas import (
     CardSchema,
     ChecklistItemSchema,
     ColumnSchema,
+    DependencySchema,
     LabelSchema,
 )
 
@@ -117,12 +118,9 @@ def get_board(session: Session) -> BoardData:
             ChecklistItemSchema(id=item.id, text=item.text, done=item.done)
         )
 
-    cards_by_column: dict[str, list[models.Card]] = {}
-    for card in cards:
-        if card.column_id is not None:
-            cards_by_column.setdefault(card.column_id, []).append(card)
-    for column_cards in cards_by_column.values():
-        column_cards.sort(key=lambda c: c.position or 0)
+    cards_by_column = _cards_by_column(cards)
+    done_column_id = columns[-1].id if columns else None
+    depends_on, blocks = _dependency_schemas(session, cards, done_column_id)
 
     return BoardData(
         subtitle=get_subtitle(session),
@@ -145,6 +143,8 @@ def get_board(session: Session) -> BoardData:
                 archivedFrom=card.archived_from,
                 archivedAt=card.archived_at,
                 dueDate=card.due_date,
+                dependsOn=depends_on.get(card.id, []),
+                blocks=blocks.get(card.id, []),
             )
             for card in cards
         },
@@ -153,6 +153,34 @@ def get_board(session: Session) -> BoardData:
             for lb in labels
         ],
     )
+
+
+def _cards_by_column(cards: list[models.Card]) -> dict[str, list[models.Card]]:
+    """Placed cards grouped by column id, each group in board order."""
+    cards_by_column: dict[str, list[models.Card]] = {}
+    for card in cards:
+        if card.column_id is not None:
+            cards_by_column.setdefault(card.column_id, []).append(card)
+    for column_cards in cards_by_column.values():
+        column_cards.sort(key=lambda c: c.position or 0)
+    return cards_by_column
+
+
+def _dependency_schemas(
+    session: Session, cards: list[models.Card], done_column_id: str | None
+) -> tuple[dict[str, list[DependencySchema]], dict[str, list[str]]]:
+    """Per card: its prerequisites (with resolved state) and the cards it blocks."""
+    cards_by_id = {card.id: card for card in cards}
+    depends_on: dict[str, list[DependencySchema]] = {}
+    blocks: dict[str, list[str]] = {}
+    for card_id, prereq_ids in _dependency_graph(session).items():
+        for prereq_id in prereq_ids:
+            resolved = _is_resolved(cards_by_id[prereq_id], done_column_id)
+            depends_on.setdefault(card_id, []).append(
+                DependencySchema(cardId=prereq_id, resolved=resolved)
+            )
+            blocks.setdefault(prereq_id, []).append(card_id)
+    return depends_on, blocks
 
 
 def validate_board(board: BoardData) -> None:
@@ -200,6 +228,27 @@ def validate_board(board: BoardData) -> None:
             raise BoardValidationError(
                 f"cards key {key!r} does not match card id {card.id!r}"
             )
+    _validate_dependencies(board)
+
+
+def _validate_dependencies(board: BoardData) -> None:
+    """Imported dependencies must point to other known cards, once, without cycles."""
+    for card in board.cards.values():
+        prereq_ids = [dep.cardId for dep in card.dependsOn]
+        if len(set(prereq_ids)) != len(prereq_ids):
+            raise BoardValidationError(f"duplicate dependency on card {card.id!r}")
+        for prereq_id in prereq_ids:
+            if prereq_id not in board.cards:
+                raise BoardValidationError(
+                    f"card {card.id!r} depends on unknown card {prereq_id!r}"
+                )
+            if prereq_id == card.id:
+                raise BoardValidationError(f"card {card.id!r} depends on itself")
+    graph = {
+        card.id: [dep.cardId for dep in card.dependsOn] for card in board.cards.values()
+    }
+    if _has_cycle(graph):
+        raise BoardValidationError("card dependencies form a cycle")
 
 
 def replace_board(session: Session, board: BoardData) -> None:
@@ -216,6 +265,7 @@ def replace_board(session: Session, board: BoardData) -> None:
             card_column[card_id] = (col.id, position)
 
     # Children first, though CASCADE would also handle it
+    session.execute(delete(models.CardDependency))
     session.execute(delete(models.CardLabel))
     session.execute(delete(models.ChecklistItem))
     session.execute(delete(models.Card))
@@ -249,17 +299,26 @@ def replace_board(session: Session, board: BoardData) -> None:
     # dependency, so flush parents before their children
     session.flush()
     for card in board.cards.values():
-        session.add_all(
-            models.CardLabel(card_id=card.id, label_id=label_id, position=i)
-            for i, label_id in enumerate(card.labels)
-        )
-        session.add_all(
-            models.ChecklistItem(
-                id=item.id, card_id=card.id, text=item.text, done=item.done, position=i
-            )
-            for i, item in enumerate(card.checklist)
-        )
+        _add_card_children(session, card)
     _finalize(session)
+
+
+def _add_card_children(session: Session, card: CardSchema) -> None:
+    """Insert an imported card's labels, checklist and dependencies."""
+    session.add_all(
+        models.CardLabel(card_id=card.id, label_id=label_id, position=i)
+        for i, label_id in enumerate(card.labels)
+    )
+    session.add_all(
+        models.ChecklistItem(
+            id=item.id, card_id=card.id, text=item.text, done=item.done, position=i
+        )
+        for i, item in enumerate(card.checklist)
+    )
+    session.add_all(
+        models.CardDependency(card_id=card.id, depends_on_id=dep.cardId, position=i)
+        for i, dep in enumerate(card.dependsOn)
+    )
 
 
 # --- entity lookups ----------------------------------------------------------
@@ -536,7 +595,8 @@ def restore_card(session: Session, card_id: str) -> None:
 
 
 def delete_card(session: Session, card_id: str) -> None:
-    session.delete(_card(session, card_id))  # card_labels/checklist rows cascade
+    # card_labels/checklist/dependency rows (both directions) cascade
+    session.delete(_card(session, card_id))
     _finalize(session)
 
 
@@ -616,6 +676,87 @@ def delete_checklist_item(session: Session, card_id: str, item_id: str) -> None:
     _finalize(session)
 
 
+# --- card dependencies -------------------------------------------------------------
+
+
+def _dependency_graph(session: Session) -> dict[str, list[str]]:
+    """card id -> ids of its prerequisites, in display order."""
+    graph: dict[str, list[str]] = {}
+    for dep in session.scalars(
+        select(models.CardDependency).order_by(models.CardDependency.position)
+    ):
+        graph.setdefault(dep.card_id, []).append(dep.depends_on_id)
+    return graph
+
+
+def _has_cycle(graph: dict[str, list[str]]) -> bool:
+    """True if following depends-on edges from some card leads back to it."""
+    state: dict[str, str] = {}  # "open" while on the current path, then "done"
+
+    def visit(node: str) -> bool:
+        """Depth-first walk; a revisit of an "open" node closes a cycle."""
+        state[node] = "open"
+        for nxt in graph.get(node, []):
+            if state.get(nxt) == "open" or (nxt not in state and visit(nxt)):
+                return True
+        state[node] = "done"
+        return False
+
+    return any(node not in state and visit(node) for node in list(graph))
+
+
+def _done_column_id(session: Session) -> str | None:
+    """The rightmost column — cards there count as finished."""
+    return session.scalars(
+        select(models.BoardColumn.id).order_by(models.BoardColumn.position.desc())
+    ).first()
+
+
+def _is_resolved(prereq: models.Card, done_column_id: str | None) -> bool:
+    """A prerequisite is resolved once it is archived or in the rightmost column."""
+    return prereq.archived or (
+        done_column_id is not None and prereq.column_id == done_column_id
+    )
+
+
+def add_card_dependency(session: Session, card_id: str, depends_on_id: str) -> None:
+    """Make `card_id` depend on `depends_on_id`; self-links and cycles are refused."""
+    _card(session, card_id)
+    _card(session, depends_on_id)
+    if card_id == depends_on_id:
+        raise BoardValidationError(f"card {card_id!r} cannot depend on itself")
+    if session.get(models.CardDependency, (card_id, depends_on_id)) is not None:
+        return
+    graph = _dependency_graph(session)
+    graph.setdefault(card_id, []).append(depends_on_id)
+    if _has_cycle(graph):
+        raise BoardValidationError(
+            f"card {card_id!r} cannot depend on {depends_on_id!r}: "
+            "that would create a dependency cycle"
+        )
+    existing = session.scalars(
+        select(models.CardDependency).where(models.CardDependency.card_id == card_id)
+    ).all()
+    max_pos = max((dep.position for dep in existing), default=-1)
+    session.add(
+        models.CardDependency(
+            card_id=card_id, depends_on_id=depends_on_id, position=max_pos + 1
+        )
+    )
+    _finalize(session)
+
+
+def remove_card_dependency(session: Session, card_id: str, depends_on_id: str) -> None:
+    """Drop the link; removing a link that does not exist is a no-op."""
+    _card(session, card_id)
+    _card(session, depends_on_id)
+    link = session.get(models.CardDependency, (card_id, depends_on_id))
+    if link is None:
+        return
+    session.delete(link)
+    _finalize(session)
+
+
 # --- labels ----------------------------------------------------------------------
 
 
@@ -684,6 +825,7 @@ def card_summary(session: Session, card: models.Card) -> dict:
         select(models.ChecklistItem).where(models.ChecklistItem.card_id == card.id)
     ).all()
     column = session.get(models.BoardColumn, card.column_id) if card.column_id else None
+    depends_on = _dependency_summaries(session, card.id)
     return {
         "id": card.id,
         "title": card.title,
@@ -694,11 +836,33 @@ def card_summary(session: Session, card: models.Card) -> dict:
         "checklist_total": len(items),
         "due_date": card.due_date,
         "archived": card.archived,
+        "depends_on": depends_on,
+        "blocked": any(not dep["resolved"] for dep in depends_on),
     }
 
 
+def _dependency_summaries(session: Session, card_id: str) -> list[dict]:
+    """A card's prerequisites as {id, title, resolved}, in display order."""
+    done_column_id = _done_column_id(session)
+    summaries = []
+    for dep in session.scalars(
+        select(models.CardDependency)
+        .where(models.CardDependency.card_id == card_id)
+        .order_by(models.CardDependency.position)
+    ):
+        prereq = session.get(models.Card, dep.depends_on_id)
+        summaries.append(
+            {
+                "id": prereq.id,
+                "title": prereq.title,
+                "resolved": _is_resolved(prereq, done_column_id),
+            }
+        )
+    return summaries
+
+
 def get_card_detail(session: Session, card_id: str) -> dict:
-    """card_summary plus the full checklist, for single-card lookups."""
+    """card_summary plus the full checklist and the cards it blocks."""
     card = _card(session, card_id)
     detail = card_summary(session, card)
     detail["checklist"] = [
@@ -707,6 +871,14 @@ def get_card_detail(session: Session, card_id: str) -> dict:
             select(models.ChecklistItem)
             .where(models.ChecklistItem.card_id == card_id)
             .order_by(models.ChecklistItem.position)
+        )
+    ]
+    detail["blocks"] = [
+        {"id": dep.card_id, "title": session.get(models.Card, dep.card_id).title}
+        for dep in session.scalars(
+            select(models.CardDependency).where(
+                models.CardDependency.depends_on_id == card_id
+            )
         )
     ]
     return detail
@@ -718,12 +890,15 @@ def search_cards(
     column: str | None = None,
     label: str | None = None,
     archived: bool | None = None,
+    blocked: bool | None = None,
 ) -> list[dict]:
     """Filterable card listing. `column`/`label` match by id or (case-insensitive) name."""
     results = []
     for card in session.scalars(select(models.Card)):
         summary = card_summary(session, card)
         if archived is not None and card.archived != archived:
+            continue
+        if blocked is not None and summary["blocked"] != blocked:
             continue
         if column is not None:
             col = (

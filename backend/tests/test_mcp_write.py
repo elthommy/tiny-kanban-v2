@@ -6,7 +6,7 @@ id-or-name resolution works, and that REST clients observe the changes
 (shared DB, version bump).
 """
 
-from .mcp_helpers import call_tool_error, rest_board, tool_result
+from .mcp_helpers import call_tool, call_tool_error, rest_board, tool_result
 
 # --- columns -------------------------------------------------------------------
 
@@ -303,3 +303,60 @@ def test_set_board_subtitle(seeded_client):
     )
     assert result == {"subtitle": "Ops · Sprint 30"}
     assert rest_board(seeded_client)["subtitle"] == "Ops · Sprint 30"
+
+
+# --- card dependencies -------------------------------------------------------------
+
+
+def test_card_dependency_lifecycle(seeded_client):
+    args = {"card_id": "c1", "depends_on_card_id": "c4"}
+    detail = tool_result(seeded_client, "add_card_dependency", args)
+    assert detail["blocked"] is True
+    assert [d["id"] for d in detail["depends_on"]] == ["c4"]
+    assert rest_board(seeded_client)["cards"]["c4"]["blocks"] == ["c1"]
+
+    detail = tool_result(seeded_client, "remove_card_dependency", args)
+    assert detail["depends_on"] == [] and detail["blocked"] is False
+
+
+def test_get_card_shows_blocked_cards(seeded_client):
+    tool_result(
+        seeded_client,
+        "add_card_dependency",
+        {"card_id": "c1", "depends_on_card_id": "c4"},
+    )
+    detail = tool_result(seeded_client, "get_card", {"card_id": "c4"})
+    assert [b["id"] for b in detail["blocks"]] == ["c1"]
+
+
+def test_list_cards_blocked_filter(seeded_client):
+    tool_result(
+        seeded_client,
+        "add_card_dependency",
+        {"card_id": "c1", "depends_on_card_id": "c4"},
+    )
+    result = call_tool(seeded_client, "list_cards", {"blocked": True})
+    assert [c["id"] for c in result["structuredContent"]["result"]] == ["c1"]
+
+
+def test_card_dependency_cycle_error_reaches_model(seeded_client):
+    tool_result(
+        seeded_client,
+        "add_card_dependency",
+        {"card_id": "c1", "depends_on_card_id": "c2"},
+    )
+    message = call_tool_error(
+        seeded_client,
+        "add_card_dependency",
+        {"card_id": "c2", "depends_on_card_id": "c1"},
+    )
+    assert "cycle" in message
+
+
+def test_card_dependency_unknown_card_error(seeded_client):
+    message = call_tool_error(
+        seeded_client,
+        "add_card_dependency",
+        {"card_id": "c1", "depends_on_card_id": "nope"},
+    )
+    assert "nope" in message
