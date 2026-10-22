@@ -28,6 +28,13 @@ class ChecklistItemSchema(Schema):
     done: bool
 
 
+class DependencySchema(Schema):
+    cardId: str  # the prerequisite card
+    # Computed by get_board (prerequisite archived or in the last column);
+    # ignored on import
+    resolved: bool = False
+
+
 class CardSchema(Schema):
     id: str
     title: str
@@ -38,6 +45,9 @@ class CardSchema(Schema):
     archivedFrom: str | None = None
     archivedAt: int | None = None
     dueDate: str | None = None  # ISO date "YYYY-MM-DD"
+    dependsOn: list[DependencySchema] = []
+    # Computed by get_board (ids of cards that depend on this one); ignored on import
+    blocks: list[str] = []
 
 
 class ColumnSchema(Schema):

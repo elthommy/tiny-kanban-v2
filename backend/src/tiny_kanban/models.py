@@ -78,3 +78,17 @@ class ChecklistItem(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     done: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class CardDependency(Base):
+    """`card_id` depends on `depends_on_id` (its prerequisite)."""
+
+    __tablename__ = "card_dependencies"
+
+    card_id: Mapped[str] = mapped_column(
+        String, ForeignKey("cards.id", ondelete="CASCADE"), primary_key=True
+    )
+    depends_on_id: Mapped[str] = mapped_column(
+        String, ForeignKey("cards.id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)

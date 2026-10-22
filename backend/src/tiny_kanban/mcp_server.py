@@ -86,21 +86,31 @@ def build_mcp(settings: Settings) -> MCPServer:
         column: str | None = None,
         label: str | None = None,
         archived: bool | None = None,
+        blocked: bool | None = None,
     ) -> list[dict]:
         """Compact card summaries, optionally filtered.
 
         query: case-insensitive substring match on title/description/label names.
         column, label: match by id or name (case-insensitive).
         archived: True for archived cards only, False for board cards only.
+        blocked: True for cards with an unresolved dependency, False for cards
+        that are free to start (a dependency is resolved once its card is in
+        the rightmost column or archived).
         """
         with tool_session() as session:
             return service.search_cards(
-                session, query=query, column=column, label=label, archived=archived
+                session,
+                query=query,
+                column=column,
+                label=label,
+                archived=archived,
+                blocked=blocked,
             )
 
     @mcp.tool()
     def get_card(card_id: str) -> dict:
-        """One card in full detail: text, labels, checklist, archive state."""
+        """One card in full detail: text, labels, checklist, archive state,
+        the cards it depends on (with resolved state) and the cards it blocks."""
         with tool_session() as session:
             return service.get_card_detail(session, card_id)
 
@@ -243,6 +253,23 @@ def build_mcp(settings: Settings) -> MCPServer:
         with tool_session() as session:
             label_id = service.resolve_label_id(session, label)
             service.remove_card_label(session, card_id, label_id)
+            return service.get_card_detail(session, card_id)
+
+    @mcp.tool()
+    def add_card_dependency(card_id: str, depends_on_card_id: str) -> dict:
+        """Record that card_id depends on depends_on_card_id (its prerequisite).
+
+        Refused if a card would depend on itself or the link would close a cycle.
+        """
+        with tool_session() as session:
+            service.add_card_dependency(session, card_id, depends_on_card_id)
+            return service.get_card_detail(session, card_id)
+
+    @mcp.tool()
+    def remove_card_dependency(card_id: str, depends_on_card_id: str) -> dict:
+        """Remove the dependency of card_id on depends_on_card_id."""
+        with tool_session() as session:
+            service.remove_card_dependency(session, card_id, depends_on_card_id)
             return service.get_card_detail(session, card_id)
 
     @mcp.tool()

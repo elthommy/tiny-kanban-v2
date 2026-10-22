@@ -11,6 +11,7 @@ EXPECTED_TABLES = {
     "labels",
     "card_labels",
     "checklist_items",
+    "card_dependencies",
     "meta",
 }
 

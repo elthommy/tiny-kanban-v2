@@ -55,6 +55,8 @@ function CardTile({
   const labels = cardLabels(card.labels, labelMap)
   const stats = checklistStats(card.checklist)
   const due = card.dueDate ? dueBadge(card.dueDate) : null
+  const depsTotal = card.dependsOn.length
+  const depsDone = card.dependsOn.filter((d) => d.resolved).length
   return (
     <>
       {showIndicator && <div className="drop-indicator" />}
@@ -78,6 +80,15 @@ function CardTile({
           <div className={`due-badge${due.cls}`}>
             <span className="due-flag">⚑</span>
             {due.text}
+          </div>
+        )}
+        {depsTotal > 0 && (
+          <div
+            className={`dep-badge${depsDone < depsTotal ? ' open' : ''}`}
+            title={depsDone < depsTotal ? 'Blocked by unfinished cards' : 'All dependencies done'}
+          >
+            <span className="dep-icon">⛓</span>
+            {depsDone}/{depsTotal}
           </div>
         )}
         {stats.has && (

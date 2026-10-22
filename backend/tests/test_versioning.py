@@ -18,8 +18,10 @@ def test_every_mutation_bumps_the_etag(client):
         etag(client.post("/api/cards/c1/archive")),
         etag(client.post("/api/cards/c1/restore")),
         etag(client.patch("/api/labels/l1", json={"name": "C"})),
+        etag(client.put("/api/cards/c1/dependencies/c2")),
+        etag(client.delete("/api/cards/c1/dependencies/c2")),
     ]
-    assert versions == ['"2"', '"3"', '"4"', '"5"', '"6"']
+    assert versions == ['"2"', '"3"', '"4"', '"5"', '"6"', '"7"', '"8"']
 
 
 def test_noop_mutation_does_not_bump(client):

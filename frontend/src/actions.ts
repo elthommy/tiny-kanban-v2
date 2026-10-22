@@ -31,6 +31,9 @@ export interface CardActions {
   toggleCheckItem: (itemId: string) => void
   setCheckItemText: (itemId: string, text: string) => void
   deleteCheckItem: (itemId: string) => void
+  addDependency: (dependsOnId: string) => void
+  removeDependency: (dependsOnId: string) => void
+  openCard: (cardId: string) => void
   archiveCard: () => void
   deleteCard: () => void
 }

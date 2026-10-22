@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { CardActions, LabelEditorActions } from '../actions'
 import { PALETTE } from '../config'
-import type { Card, Label } from '../types'
+import type { Card, Column, Label } from '../types'
 import { checklistStats } from './LabelPill'
 
 interface CardModalProps {
   card: Card
+  cards: Record<string, Card>
+  columns: Column[]
   labels: Label[]
   labelEditorOpen: boolean
   colorPickerLabel: string | null
@@ -14,7 +16,16 @@ interface CardModalProps {
   labelActions: LabelEditorActions
 }
 
-export default function CardModal({ card, labels, labelEditorOpen, colorPickerLabel, actions, labelActions }: CardModalProps) {
+export default function CardModal({
+  card,
+  cards,
+  columns,
+  labels,
+  labelEditorOpen,
+  colorPickerLabel,
+  actions,
+  labelActions,
+}: CardModalProps) {
   const stats = checklistStats(card.checklist)
   const titleRef = useRef<HTMLTextAreaElement>(null)
 
@@ -178,6 +189,8 @@ export default function CardModal({ card, labels, labelEditorOpen, colorPickerLa
         </div>
         <input className="dashed-input add-check" placeholder="+  Add an item, press Enter" onKeyDown={onAddChecklist} />
 
+        <DependencySection card={card} cards={cards} columns={columns} actions={actions} />
+
         <div className="modal-footer">
           <button className="btn-archive-card" onClick={actions.archiveCard}>
             Archive card
@@ -188,5 +201,89 @@ export default function CardModal({ card, labels, labelEditorOpen, colorPickerLa
         </div>
       </div>
     </div>
+  )
+}
+
+function DependencySection({
+  card,
+  cards,
+  columns,
+  actions,
+}: {
+  card: Card
+  cards: Record<string, Card>
+  columns: Column[]
+  actions: CardActions
+}) {
+  const columnOf: Record<string, string> = {}
+  for (const col of columns) for (const id of col.cardIds) columnOf[id] = col.title
+  const where = (c: Card) => (c.archived ? 'Archived' : columnOf[c.id] ?? '')
+  const linked = new Set(card.dependsOn.map((d) => d.cardId))
+  // Board cards in board order; cycles are rejected by the backend
+  const candidates = columns
+    .flatMap((col) => col.cardIds)
+    .filter((id) => id !== card.id && !linked.has(id) && cards[id])
+    .map((id) => cards[id])
+
+  return (
+    <>
+      <div className="section-label" style={{ marginBottom: 8 }}>
+        DEPENDS ON
+      </div>
+      <div className="check-list">
+        {card.dependsOn.map((dep) => {
+          const other = cards[dep.cardId]
+          if (!other) return null
+          return (
+            <div key={dep.cardId} className="check-item">
+              <span className={`dep-status${dep.resolved ? ' resolved' : ''}`} title={dep.resolved ? 'Done' : 'Not done yet'}>
+                {dep.resolved ? '✓' : '○'}
+              </span>
+              <button className={`dep-link${dep.resolved ? ' done' : ''}`} onClick={() => actions.openCard(other.id)}>
+                {other.title}
+              </button>
+              <span className="dep-where">{where(other)}</span>
+              <button className="check-del" onClick={() => actions.removeDependency(other.id)} title="Remove dependency">
+                ×
+              </button>
+            </div>
+          )
+        })}
+      </div>
+      <select
+        className="dashed-input add-check dep-select"
+        value=""
+        onChange={(e) => e.target.value && actions.addDependency(e.target.value)}
+        aria-label="Add a dependency"
+      >
+        <option value="">+  Add a card this one depends on…</option>
+        {candidates.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.title} — {where(c)}
+          </option>
+        ))}
+      </select>
+
+      {card.blocks.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginBottom: 8 }}>
+            BLOCKS
+          </div>
+          <div className="check-list add-check">
+            {card.blocks
+              .map((id) => cards[id])
+              .filter(Boolean)
+              .map((other) => (
+                <div key={other.id} className="check-item">
+                  <button className="dep-link" onClick={() => actions.openCard(other.id)}>
+                    {other.title}
+                  </button>
+                  <span className="dep-where">{where(other)}</span>
+                </div>
+              ))}
+          </div>
+        </>
+      )}
+    </>
   )
 }

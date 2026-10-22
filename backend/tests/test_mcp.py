@@ -58,6 +58,8 @@ WRITE_TOOLS = {
     "create_label",
     "rename_label",
     "delete_label",
+    "add_card_dependency",
+    "remove_card_dependency",
 }
 
 

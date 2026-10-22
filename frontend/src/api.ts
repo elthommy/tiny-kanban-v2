@@ -130,6 +130,12 @@ export const api = {
   removeCardLabel: (cardId: string, labelId: string) =>
     mutate(`/api/cards/${id(cardId)}/labels/${id(labelId)}`, 'DELETE'),
 
+  // card dependencies
+  addCardDependency: (cardId: string, dependsOnId: string) =>
+    mutate(`/api/cards/${id(cardId)}/dependencies/${id(dependsOnId)}`, 'PUT'),
+  removeCardDependency: (cardId: string, dependsOnId: string) =>
+    mutate(`/api/cards/${id(cardId)}/dependencies/${id(dependsOnId)}`, 'DELETE'),
+
   // checklist
   addCheckItem: (cardId: string, text: string) =>
     mutate(`/api/cards/${id(cardId)}/checklist`, 'POST', { text }),
