@@ -55,6 +55,15 @@ def seeded_client(client: TestClient) -> TestClient:
     return client
 
 
+@pytest.fixture
+def strict_client(tmp_path: Path) -> Iterator[TestClient]:
+    """Seeded full-app client with the hard dependency rule switched on."""
+    app = create_app(make_settings(tmp_path, strict_dependencies=True))
+    with TestClient(app) as c:
+        c.get("/api/board")
+        yield c
+
+
 # --- payload builders -------------------------------------------------------
 
 

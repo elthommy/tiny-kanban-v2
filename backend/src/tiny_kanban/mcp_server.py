@@ -215,7 +215,13 @@ def build_mcp(settings: Settings) -> MCPServer:
         """Move a card into a column, before the given card (or to the end)."""
         with tool_session() as session:
             column_id = service.resolve_column_id(session, to_column)
-            service.move_card(session, card_id, column_id, before_card_id)
+            service.move_card(
+                session,
+                card_id,
+                column_id,
+                before_card_id,
+                strict_dependencies=settings.strict_dependencies,
+            )
             return service.get_card_detail(session, card_id)
 
     @mcp.tool()

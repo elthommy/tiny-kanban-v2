@@ -32,6 +32,7 @@ it there). Everything has defaults; env vars beat `.env`.
 | `KANBAN_HOST` | `127.0.0.1` | Backend bind interface |
 | `KANBAN_FRONTEND_PORT` | `5173` | Vite dev server port (dev mode only) |
 | `KANBAN_DB_PATH` | `backend/data/board.db` | SQLite database file |
+| `KANBAN_STRICT_DEPENDENCIES` | `false` | Hard dependency rule (see Card dependencies) |
 
 Backend settings live in `backend/src/tiny_kanban/config.py` (pydantic-settings,
 prefix `KANBAN_`). Add new settings there, never as scattered constants.
@@ -134,8 +135,12 @@ reason is present.
 depends_on_id". Rules in `service.py`: no self-links, no cycles (checked on add
 and on `PUT /api/board` import → 422), duplicates are no-ops, both FKs cascade
 on card delete. A prerequisite is **resolved** when it is archived or sits in
-the **rightmost column** (`_is_resolved`). It is a soft rule: blocked cards can
-still be moved. In the board payload, `dependsOn[].resolved` and `blocks` are
+the **rightmost column** (`_is_resolved`). By default it is a soft rule: blocked
+cards can still be moved. With `KANBAN_STRICT_DEPENDENCIES=true`, `move_card`
+refuses (422 / tool error naming the unresolved prerequisites) to move a
+blocked card *into* the rightmost column; other columns, reordering a card
+already there, and `restore_card` stay allowed. `api.py`/`mcp_server.py` pass
+the setting as `strict_dependencies=`. In the board payload, `dependsOn[].resolved` and `blocks` are
 computed by `get_board` and ignored on import.
 
 ### Frontend contract
@@ -208,8 +213,5 @@ Done: SQLite + Alembic (Phase 1) · per-resource API, rules in `service.py`,
 board version/ETag, MCP at `/mcp` (Phase 2) · MCP write tools · due dates
 (`cards.due_date`, ISO "YYYY-MM-DD") · column reordering · column sort by label ·
 card dependencies (`card_dependencies`, soft rule) ·
-"Sync failed" banner shows the backend's reason.
-
-Next ideas:
-- Optional hard dependency rule (refuse moving a blocked card into the last
-  column) — would be one check in `move_card`.
+"Sync failed" banner shows the backend's reason · optional hard dependency
+rule (`KANBAN_STRICT_DEPENDENCIES`).

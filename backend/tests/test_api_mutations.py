@@ -322,3 +322,21 @@ def test_patch_board_subtitle(seeded_client):
 
 def test_patch_board_missing_subtitle_422(seeded_client):
     assert seeded_client.patch("/api/board", json={}).status_code == 422
+
+
+# --- hard dependency rule ----------------------------------------------------------------
+
+
+def test_blocked_card_move_allowed_by_default(seeded_client):
+    board_of(seeded_client.put("/api/cards/c1/dependencies/c4"))
+    b = board_of(seeded_client.post("/api/cards/c1/move", json={"toColumnId": "col4"}))
+    assert "c1" in column(b, "col4")["cardIds"]
+
+
+def test_strict_blocked_card_move_422_with_reason(strict_client):
+    board_of(strict_client.put("/api/cards/c1/dependencies/c4"))
+    version = strict_client.get("/api/board").headers["ETag"]
+    r = strict_client.post("/api/cards/c1/move", json={"toColumnId": "col4"})
+    assert r.status_code == 422
+    assert "blocked by 'c4'" in r.json()["detail"]
+    assert strict_client.get("/api/board").headers["ETag"] == version

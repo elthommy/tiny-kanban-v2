@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from . import schemas, service
+from .config import Settings
 from .schemas import BoardData
 from .seed import seed_board
 
@@ -18,6 +19,11 @@ router = APIRouter(prefix="/api")
 def get_session() -> (
     Session
 ):  # overridden in main.create_app with a real session factory
+    raise NotImplementedError
+
+
+def get_settings() -> Settings:
+    """App settings; overridden in main.create_app with the app's instance."""
     raise NotImplementedError
 
 
@@ -154,9 +160,18 @@ def set_card_due_date(
 
 @router.post("/cards/{card_id}/move")
 def move_card(
-    card_id: str, body: schemas.CardMove, session: Session = Depends(get_session)
+    card_id: str,
+    body: schemas.CardMove,
+    session: Session = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> JSONResponse:
-    service.move_card(session, card_id, body.toColumnId, body.beforeCardId)
+    service.move_card(
+        session,
+        card_id,
+        body.toColumnId,
+        body.beforeCardId,
+        strict_dependencies=settings.strict_dependencies,
+    )
     return board_response(session)
 
 

@@ -538,14 +538,25 @@ def set_card_due_date(session: Session, card_id: str, due_date: str | None) -> N
 
 
 def move_card(
-    session: Session, card_id: str, to_column_id: str, before_card_id: str | None = None
+    session: Session,
+    card_id: str,
+    to_column_id: str,
+    before_card_id: str | None = None,
+    *,
+    strict_dependencies: bool = False,
 ) -> None:
     """Port of the frontend drag & drop rule: remove from current spot, insert
-    before the anchor card (or append when the anchor is absent/None)."""
+    before the anchor card (or append when the anchor is absent/None).
+
+    With `strict_dependencies`, a card with unresolved prerequisites may not
+    enter the last column (reordering a card already there stays allowed).
+    """
     card = _card(session, card_id)
     _column(session, to_column_id)
     if card.archived:
         raise BoardValidationError(f"card {card_id!r} is archived and cannot be moved")
+    if strict_dependencies:
+        _check_can_enter(session, card, to_column_id)
     if before_card_id == card_id:
         return
 
@@ -717,6 +728,31 @@ def _is_resolved(prereq: models.Card, done_column_id: str | None) -> bool:
     return prereq.archived or (
         done_column_id is not None and prereq.column_id == done_column_id
     )
+
+
+def _unresolved_prerequisites(
+    session: Session, card_id: str, done_column_id: str | None
+) -> list[models.Card]:
+    """The card's prerequisites that are neither archived nor in the last column."""
+    prereqs = [
+        _card(session, prereq_id)
+        for prereq_id in _dependency_graph(session).get(card_id, [])
+    ]
+    return [p for p in prereqs if not _is_resolved(p, done_column_id)]
+
+
+def _check_can_enter(session: Session, card: models.Card, to_column_id: str) -> None:
+    """Hard dependency rule: a blocked card may not move into the last column."""
+    done_column_id = _done_column_id(session)
+    if to_column_id != done_column_id or card.column_id == to_column_id:
+        return
+    blockers = _unresolved_prerequisites(session, card.id, done_column_id)
+    if blockers:
+        names = ", ".join(f"{c.id!r} ({c.title})" for c in blockers)
+        raise BoardValidationError(
+            f"card {card.id!r} is blocked by {names}: finish or archive "
+            "its prerequisites before moving it to the last column"
+        )
 
 
 def add_card_dependency(session: Session, card_id: str, depends_on_id: str) -> None:
