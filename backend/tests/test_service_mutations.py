@@ -638,6 +638,69 @@ def test_remove_card_dependency(seeded):
     service.add_card_dependency(seeded, "c1", "c2")
     service.remove_card_dependency(seeded, "c1", "c2")
     assert deps(seeded, "c1") == []
+
+
+# --- hard dependency rule (strict_dependencies) -----------------------------------
+
+
+def column_of(session, card_id: str) -> str:
+    """Id of the column currently holding the card."""
+    return next(c.id for c in board(session).columns if card_id in c.cardIds)
+
+
+def test_blocked_card_moves_to_last_column_by_default(seeded):
+    service.add_card_dependency(seeded, "c1", "c4")
+    service.move_card(seeded, "c1", "col4")
+    assert column_of(seeded, "c1") == "col4"
+
+
+def test_strict_refuses_blocked_card_entering_last_column(seeded):
+    service.add_card_dependency(seeded, "c1", "c4")
+    version = service.get_version(seeded)
+    with pytest.raises(BoardValidationError, match=r"blocked by 'c4' \(.+\)"):
+        service.move_card(seeded, "c1", "col4", strict_dependencies=True)
+    assert column_of(seeded, "c1") == "col1"
+    assert service.get_version(seeded) == version
+
+
+def test_strict_names_only_unresolved_prerequisites(seeded):
+    service.add_card_dependency(seeded, "c1", "c8")  # in Done: resolved
+    service.add_card_dependency(seeded, "c1", "c4")
+    service.add_card_dependency(seeded, "c1", "c5")
+    with pytest.raises(BoardValidationError) as exc:
+        service.move_card(seeded, "c1", "col4", strict_dependencies=True)
+    assert "'c4'" in str(exc.value) and "'c5'" in str(exc.value)
+    assert "'c8'" not in str(exc.value)
+
+
+def test_strict_allows_move_once_prerequisites_resolved(seeded):
+    service.add_card_dependency(seeded, "c1", "c4")
+    service.add_card_dependency(seeded, "c1", "c5")
+    service.move_card(seeded, "c4", "col4")
+    service.archive_card(seeded, "c5")
+    service.move_card(seeded, "c1", "col4", strict_dependencies=True)
+    assert column_of(seeded, "c1") == "col4"
+
+
+def test_strict_allows_blocked_card_into_other_columns(seeded):
+    service.add_card_dependency(seeded, "c1", "c4")
+    service.move_card(seeded, "c1", "col3", strict_dependencies=True)
+    assert column_of(seeded, "c1") == "col3"
+
+
+def test_strict_allows_reordering_inside_last_column(seeded):
+    # card got there before the rule was on (or before the link existed)
+    service.add_card_dependency(seeded, "c9", "c4")
+    service.move_card(seeded, "c9", "col4", "c8", strict_dependencies=True)
+    assert board(seeded).columns[3].cardIds == ["c9", "c8"]
+
+
+def test_strict_follows_column_order(seeded):
+    service.add_card_dependency(seeded, "c1", "c4")
+    service.move_column(seeded, "col4", "col1")  # col3 is now the last column
+    service.move_card(seeded, "c1", "col4", strict_dependencies=True)
+    with pytest.raises(BoardValidationError, match="blocked"):
+        service.move_card(seeded, "c1", "col3", strict_dependencies=True)
     assert board(seeded).cards["c2"].blocks == []
     service.remove_card_dependency(seeded, "c1", "c2")  # absent link: no-op
 

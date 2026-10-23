@@ -53,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     engine = make_engine(settings)
     session_factory = make_session_factory(engine)
     app.dependency_overrides[api.get_session] = session_dependency(session_factory)
+    app.dependency_overrides[api.get_settings] = lambda: settings
 
     app.include_router(api.router)
     app.mount("/mcp", mcp_app)

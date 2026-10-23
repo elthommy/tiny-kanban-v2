@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     backend_port: int = 8000
     db_path: Path = REPO_ROOT / "backend" / "data" / "board.db"
     static_dir: Path = REPO_ROOT / "frontend" / "dist"
+    # Hard dependency rule: refuse moving a card with unresolved prerequisites
+    # into the last column (off = soft rule, blocked cards move freely)
+    strict_dependencies: bool = False
 
     @property
     def db_url(self) -> str:

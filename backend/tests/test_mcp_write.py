@@ -360,3 +360,15 @@ def test_card_dependency_unknown_card_error(seeded_client):
         {"card_id": "c1", "depends_on_card_id": "nope"},
     )
     assert "nope" in message
+
+
+def test_strict_blocked_move_error_reaches_model(strict_client):
+    tool_result(
+        strict_client,
+        "add_card_dependency",
+        {"card_id": "c1", "depends_on_card_id": "c4"},
+    )
+    message = call_tool_error(
+        strict_client, "move_card", {"card_id": "c1", "to_column": "Done"}
+    )
+    assert "blocked by 'c4'" in message
