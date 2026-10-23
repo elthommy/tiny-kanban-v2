@@ -91,8 +91,27 @@ async function mutate(path: string, method: string, body?: unknown): Promise<Boa
     method,
     ...(body !== undefined && { headers: JSON_HEADERS, body: JSON.stringify(body) }),
   })
-  if (!res.ok) throw new Error(`${method} ${path} failed (HTTP ${res.status})`)
+  if (!res.ok) {
+    const reason = await errorDetail(res)
+    throw new Error(reason ?? `${method} ${path} failed (HTTP ${res.status})`)
+  }
   return (await res.json()) as BoardData
+}
+
+/** The backend's refusal reason: `{detail: "..."}` from board rules (404/422), or
+ *  FastAPI's `{detail: [{msg}, ...]}` for malformed requests. Null if absent. */
+async function errorDetail(res: Response): Promise<string | null> {
+  try {
+    const { detail } = await res.json()
+    if (typeof detail === 'string' && detail) return detail
+    if (Array.isArray(detail)) {
+      const msgs = detail.map((d) => d?.msg).filter((m) => typeof m === 'string')
+      if (msgs.length) return msgs.join('; ')
+    }
+  } catch {
+    // non-JSON body (e.g. a proxy error page) — fall back to the status line
+  }
+  return null
 }
 
 const id = encodeURIComponent

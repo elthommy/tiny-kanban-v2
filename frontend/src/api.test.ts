@@ -151,4 +151,24 @@ describe('structural mutations', () => {
     const { api } = await freshApi()
     await expect(api.deleteCard('c1')).rejects.toThrow('DELETE /api/cards/c1 failed (HTTP 422)')
   })
+
+  it("surfaces the backend's refusal reason when the body has a detail", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ detail: 'that would create a dependency cycle' }, false, 422))
+    const { api } = await freshApi()
+    await expect(api.addCardDependency('c1', 'c2')).rejects.toThrow('that would create a dependency cycle')
+  })
+
+  it('joins FastAPI request-validation messages', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ detail: [{ msg: 'Field required' }, { msg: 'Input should be a valid date' }] }, false, 422),
+    )
+    const { api } = await freshApi()
+    await expect(api.setCardDueDate('c1', 'nope')).rejects.toThrow('Field required; Input should be a valid date')
+  })
+
+  it('falls back to the status line when the error body is not JSON', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 502, json: () => Promise.reject(new SyntaxError('bad')) })
+    const { api } = await freshApi()
+    await expect(api.archiveCard('c1')).rejects.toThrow('POST /api/cards/c1/archive failed (HTTP 502)')
+  })
 })

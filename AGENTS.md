@@ -149,8 +149,10 @@ computed by `get_board` and ignored on import.
   keystroke: local state updates optimistically, `api.ts` debounces a PATCH
   per target (400 ms) and flushes on tab-hide **and before any structural
   call** (so a structural response can't revive stale text).
-- Failed structural calls show a dismissible "Sync failed" banner; state keeps
-  the last server board.
+- Failed structural calls show a dismissible "Sync failed" banner with the
+  backend's `detail` reason (falls back to method/path/status); state keeps
+  the last server board. Write user-readable `NotFoundError` /
+  `BoardValidationError` messages — they are shown verbatim.
 
 ## Testing
 
@@ -205,11 +207,9 @@ Migrations run automatically at startup; users never run Alembic by hand.
 Done: SQLite + Alembic (Phase 1) · per-resource API, rules in `service.py`,
 board version/ETag, MCP at `/mcp` (Phase 2) · MCP write tools · due dates
 (`cards.due_date`, ISO "YYYY-MM-DD") · column reordering · column sort by label ·
-card dependencies (`card_dependencies`, soft rule).
+card dependencies (`card_dependencies`, soft rule) ·
+"Sync failed" banner shows the backend's reason.
 
 Next ideas:
-- "Sync failed" banner should show the backend's reason: 404/422 bodies carry
-  a `detail` message (e.g. "that would create a dependency cycle") that
-  `api.ts` currently drops, so the user never learns why an action was refused.
 - Optional hard dependency rule (refuse moving a blocked card into the last
   column) — would be one check in `move_card`.
