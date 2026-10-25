@@ -38,6 +38,20 @@ it there). Everything has defaults; env vars beat `.env`.
 Backend settings live in `backend/src/tiny_kanban/config.py` (pydantic-settings,
 prefix `KANBAN_`). Add new settings there, never as scattered constants.
 
+## Security model
+
+Read by `/security-audit` (global command) and by anyone touching entry points.
+
+- **Trusted**: whoever can reach the port. No authentication by design (local,
+  single-user); "anyone reaching the API can edit the board" is intended.
+- **Boundary**: loopback bind (`KANBAN_HOST`) + the Host/Origin guard in
+  `main.py` (see Gotchas). Every entry point — `/api`, `/mcp`, static UI —
+  must stay behind it; never add a route or mount that bypasses it.
+- **Attackers that matter**: a website the user visits (CSRF, CORS, DNS
+  rebinding), a crafted board import (`PUT /api/board`), a crafted MCP client,
+  and content stored on the board (rendered by React — never via
+  `dangerouslySetInnerHTML` — and read back by LLM clients).
+
 ## Where is the data stored?
 
 **A SQLite file** at `KANBAN_DB_PATH` (default `backend/data/board.db`,
