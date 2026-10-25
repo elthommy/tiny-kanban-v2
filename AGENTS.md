@@ -33,6 +33,7 @@ it there). Everything has defaults; env vars beat `.env`.
 | `KANBAN_FRONTEND_PORT` | `5173` | Vite dev server port (dev mode only) |
 | `KANBAN_DB_PATH` | `backend/data/board.db` | SQLite database file |
 | `KANBAN_STRICT_DEPENDENCIES` | `false` | Hard dependency rule (see Card dependencies) |
+| `KANBAN_ALLOWED_HOSTS` | *(empty)* | Extra comma-separated host names accepted in `Host`/`Origin` (see Gotchas) |
 
 Backend settings live in `backend/src/tiny_kanban/config.py` (pydantic-settings,
 prefix `KANBAN_`). Add new settings there, never as scattered constants.
@@ -200,8 +201,14 @@ Migrations run automatically at startup; users never run Alembic by hand.
 - `frontend/dist/` and `backend/data/` are build/runtime artifacts, gitignored.
 - The `/mcp` mount rewrites the no-trailing-slash path in a middleware in
   `main.py` — without it, Starlette 307-redirects `/mcp` → `/mcp/` and some
-  MCP clients fail. DNS-rebinding protection is off (local unauthenticated
-  app; the REST API has no Host validation either).
+  MCP clients fail.
+- **Local-only guard** (`_local_only` / `foreign_request_reason` in `main.py`):
+  the app is unauthenticated, so every request — `/api`, `/mcp`, static UI —
+  is refused with 403 unless its `Host` is trusted (DNS rebinding) and its
+  `Origin`, if sent, is too (CSRF). Trusted = loopback names, `KANBAN_HOST`
+  unless it is `0.0.0.0`, plus `KANBAN_ALLOWED_HOSTS` (`Settings.trusted_hosts`,
+  any port). The MCP SDK's own rebinding check stays off to keep one
+  allow-list. Tests: `make_settings` trusts TestClient's `testserver` host.
 - `window.confirm` guards destructive UI actions (`CONFIRM_DELETE` in
   `frontend/src/config.ts`).
 - Don't add a router, state library, or second store to the frontend; extend

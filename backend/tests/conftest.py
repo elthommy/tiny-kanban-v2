@@ -15,6 +15,8 @@ def make_settings(tmp_path: Path, **overrides) -> Settings:
     defaults = dict(
         db_path=tmp_path / "data" / "test.db",
         static_dir=tmp_path / "no-dist",
+        # TestClient sends "Host: testserver"
+        allowed_hosts=["testserver"],
     )
     defaults.update(overrides)
     return Settings(_env_file=None, **defaults)
