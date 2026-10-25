@@ -33,9 +33,9 @@ def build_mcp_app(mcp: MCPServer) -> Starlette:
         streamable_http_path="/",
         stateless_http=True,
         json_response=True,
-        # The REST API beside this mount has no Host validation either — the app
-        # is a local, unauthenticated, single-user tool. Keeping the MCP check on
-        # would only break non-localhost binds (KANBAN_HOST=0.0.0.0) and tests.
+        # Host/Origin (DNS rebinding, CSRF) are checked app-wide before any
+        # request reaches this mount — see _local_only in main.py — so the
+        # SDK's own copy of that check stays off to keep one allow-list.
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=False
         ),

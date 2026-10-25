@@ -1,9 +1,16 @@
 from pathlib import Path
+from typing import Annotated
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Repo root (backend/src/tiny_kanban/config.py -> three parents up from this file's dir)
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Host names every request may carry in its Host/Origin header (any port)
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+# Bind addresses meaning "all interfaces" — not a name a browser ever sends
+WILDCARD_BINDS = frozenset({"0.0.0.0", "::"})
 
 
 class Settings(BaseSettings):
@@ -23,10 +30,30 @@ class Settings(BaseSettings):
     # Hard dependency rule: refuse moving a card with unresolved prerequisites
     # into the last column (off = soft rule, blocked cards move freely)
     strict_dependencies: bool = False
+    # Extra host names (comma-separated) accepted in Host/Origin headers on top
+    # of loopback and KANBAN_HOST — e.g. "kanban.lan,192.168.1.10" for a LAN bind
+    allowed_hosts: Annotated[list[str], NoDecode] = []
+
+    @field_validator("allowed_hosts", mode="before")
+    @classmethod
+    def _split_hosts(cls, value: object) -> object:
+        """Accept KANBAN_ALLOWED_HOSTS as a comma-separated string."""
+        if isinstance(value, str):
+            return [h.strip() for h in value.split(",") if h.strip()]
+        return value
 
     @property
     def db_url(self) -> str:
+        """SQLAlchemy URL of the SQLite database file."""
         return f"sqlite:///{self.db_path}"
+
+    @property
+    def trusted_hosts(self) -> frozenset[str]:
+        """Lower-cased host names the app answers to (DNS-rebinding/CSRF guard)."""
+        hosts = set(LOOPBACK_HOSTS) | {h.lower() for h in self.allowed_hosts}
+        if self.host not in WILDCARD_BINDS:
+            hosts.add(self.host.strip("[]").lower())
+        return frozenset(hosts)
 
 
 # Default label colors, cycled through when a label is created without explicit
