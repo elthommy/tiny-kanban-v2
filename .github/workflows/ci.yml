@@ -10,6 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# CI only reads the code; keep the token read-only whatever the repo default.
+permissions:
+  contents: read
+
 jobs:
   backend:
     runs-on: ubuntu-latest
