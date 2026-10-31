@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { CardActions, LabelEditorActions } from '../actions'
 import { PALETTE } from '../config'
@@ -250,19 +250,7 @@ function DependencySection({
           )
         })}
       </div>
-      <select
-        className="dashed-input add-check dep-select"
-        value=""
-        onChange={(e) => e.target.value && actions.addDependency(e.target.value)}
-        aria-label="Add a dependency"
-      >
-        <option value="">+  Add a card this one depends on…</option>
-        {candidates.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.title} — {where(c)}
-          </option>
-        ))}
-      </select>
+      <DependencyPicker candidates={candidates} where={where} onPick={actions.addDependency} />
 
       {card.blocks.length > 0 && (
         <>
@@ -285,5 +273,92 @@ function DependencySection({
         </>
       )}
     </>
+  )
+}
+
+/** Type-to-filter picker for adding a dependency (all words must match title or column). */
+function DependencyPicker({
+  candidates,
+  where,
+  onPick,
+}: {
+  candidates: Card[]
+  where: (c: Card) => string
+  onPick: (cardId: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
+
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const matches = candidates.filter((c) => {
+    const hay = `${c.title} ${where(c)}`.toLowerCase()
+    return words.every((w) => hay.includes(w))
+  })
+  const current = Math.min(active, Math.max(matches.length - 1, 0))
+
+  const pick = (c: Card) => {
+    onPick(c.id)
+    setQuery('')
+    setActive(0)
+  }
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setOpen(true)
+      setActive(Math.min(current + 1, matches.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActive(Math.max(current - 1, 0))
+    } else if (e.key === 'Enter' && open && matches[current]) {
+      e.preventDefault()
+      pick(matches[current])
+    } else if (e.key === 'Escape' && (open || query)) {
+      e.stopPropagation() // close the list, not the modal
+      setOpen(false)
+      setQuery('')
+    }
+  }
+
+  return (
+    <div className="dep-picker add-check">
+      <input
+        className="dashed-input"
+        placeholder={candidates.length ? '+  Add a card this one depends on…' : 'No other cards to depend on'}
+        disabled={!candidates.length}
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setActive(0)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={onKeyDown}
+        role="combobox"
+        aria-expanded={open}
+        aria-label="Add a dependency"
+      />
+      {open && (
+        <div className="dep-options" role="listbox">
+          {matches.length === 0 && <div className="dep-option empty">No matching card</div>}
+          {matches.map((c, i) => (
+            <div
+              key={c.id}
+              role="option"
+              aria-selected={i === current}
+              className={`dep-option${i === current ? ' active' : ''}`}
+              onMouseDown={(e) => e.preventDefault()} // keep focus so the list stays open
+              onMouseEnter={() => setActive(i)}
+              onClick={() => pick(c)}
+            >
+              <span className="dep-option-title">{c.title}</span>
+              <span className="dep-where">{where(c)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

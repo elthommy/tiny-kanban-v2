@@ -871,9 +871,41 @@ textarea {
   color: #6e6a78;
   flex: 0 0 auto;
 }
-.dep-select {
+.dep-picker {
+  position: relative;
+}
+.dep-options {
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #35323c;
+  border-radius: 9px;
+  background: #2a282f;
+  padding: 4px;
+}
+.dep-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #eceaf2;
   cursor: pointer;
-  color-scheme: dark;
+}
+.dep-option.active {
+  background: #35323c;
+}
+.dep-option.empty {
+  color: #6e6a78;
+  cursor: default;
+}
+.dep-option-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .dep-badge {
   display: inline-flex;
