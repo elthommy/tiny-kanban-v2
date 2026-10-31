@@ -7,15 +7,22 @@
 #   ./start.sh dev       development mode: backend with auto-reload + Vite dev
 #                        server with HMR (two processes, Ctrl-C stops both)
 #
-# Ports and paths are configured via a repo-root .env file (see .env.example).
+# Ports and paths are configured via a repo-root .env file (see .env.example);
+# environment variables override .env.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 command -v uv >/dev/null || { echo "error: uv is required — install it from https://docs.astral.sh/uv/" >&2; exit 1; }
 command -v npm >/dev/null || { echo "error: npm is required — install Node.js from https://nodejs.org/" >&2; exit 1; }
 
-# shellcheck disable=SC1091
-[ -f .env ] && set -a && . ./.env && set +a
+# Load .env, but let variables already set in the environment win:
+# snapshot exported KANBAN_* vars, source .env, then restore the snapshot.
+if [ -f .env ]; then
+    env_overrides="$(export -p | grep ' KANBAN_' || true)"
+    # shellcheck disable=SC1091
+    set -a && . ./.env && set +a
+    eval "$env_overrides"
+fi
 BACKEND_PORT="${KANBAN_BACKEND_PORT:-8000}"
 HOST="${KANBAN_HOST:-127.0.0.1}"
 FRONTEND_PORT="${KANBAN_FRONTEND_PORT:-5173}"
