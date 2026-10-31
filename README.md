@@ -13,6 +13,14 @@ LLM clients can query **and update** the board:
 ```bash
 claude mcp add --transport http tiny-kanban http://127.0.0.1:8000/mcp
 ```
+## Demo
+
+https://github.com/user-attachments/assets/2d0bec4f-3922-4ad5-82a7-e473bcc66db5
+
+[![Tiny-kanban v2 launch video](./doc/video/tiny-kanban-v2_brag.jpg)](./doc/video/tiny-kanban-v2_brag.mp4)
+
+<sub>Music: "Happy Beats / Business Moves Vol. 1" by Sascha Ende, [ende.app](https://ende.app) — licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).</sub>
+
 ## Dashboard
 ![Board with labels, checklist progress and due-date badges (overdue, due soon, upcoming)](./doc/screenshots/tiny-kanban-v2_dashboard.png)
 ## Card
