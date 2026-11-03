@@ -236,6 +236,12 @@ that unit tests can't see. Outside `testpaths`, so plain `pytest` skips them;
 Chromium if installed (`uv run --group e2e playwright install chromium`), else
 a system `chromium`. CI runs them in the separate `e2e` job.
 
+**README screenshots** — the snooze shots (dashboard, snooze popup, Snoozed
+tab) are generated: after `npm run build`, `cd backend && uv run --group e2e
+python ../doc/make_screenshots.py` overwrites them in `doc/screenshots/`
+(same in-process server as the e2e tests; dates are relative to today). The
+other screenshots are still taken by hand.
+
 ## How to add an Alembic migration
 
 1. Edit `models.py` (add a column/table).
