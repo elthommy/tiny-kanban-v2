@@ -76,7 +76,8 @@ def build_mcp(settings: Settings) -> MCPServer:
     @mcp.tool()
     def get_board() -> dict:
         """The full board: ordered columns with their card ids, all cards
-        (including archived ones), and the shared labels."""
+        (including archived and snoozed ones — `snoozed: true` cards are
+        hidden from the UI until `snoozedUntil`), and the shared labels."""
         with tool_session() as session:
             return service.get_board(session).model_dump(exclude_none=True)
 
@@ -87,6 +88,7 @@ def build_mcp(settings: Settings) -> MCPServer:
         label: str | None = None,
         archived: bool | None = None,
         blocked: bool | None = None,
+        snoozed: bool | None = None,
     ) -> list[dict]:
         """Compact card summaries, optionally filtered.
 
@@ -96,6 +98,8 @@ def build_mcp(settings: Settings) -> MCPServer:
         blocked: True for cards with an unresolved dependency, False for cards
         that are free to start (a dependency is resolved once its card is in
         the rightmost column or archived).
+        snoozed: True for cards hidden from the board until a later date,
+        False for cards currently visible or archived.
         """
         with tool_session() as session:
             return service.search_cards(
@@ -105,11 +109,12 @@ def build_mcp(settings: Settings) -> MCPServer:
                 label=label,
                 archived=archived,
                 blocked=blocked,
+                snoozed=snoozed,
             )
 
     @mcp.tool()
     def get_card(card_id: str) -> dict:
-        """One card in full detail: text, labels, checklist, archive state,
+        """One card in full detail: text, labels, checklist, archive/snooze state,
         the cards it depends on (with resolved state) and the cards it blocks."""
         with tool_session() as session:
             return service.get_card_detail(session, card_id)
@@ -206,6 +211,24 @@ def build_mcp(settings: Settings) -> MCPServer:
         """Set a card's due date ("YYYY-MM-DD"), or clear it when omitted."""
         with tool_session() as session:
             service.set_card_due_date(session, card_id, due_date)
+            return service.get_card_detail(session, card_id)
+
+    @mcp.tool()
+    def snooze_card(card_id: str, until: str) -> dict:
+        """Hide a card from the board until a date ("YYYY-MM-DD", after today).
+
+        The card keeps its column and position and reappears on that date by
+        itself. Calling it on a snoozed card changes the wake-up date.
+        """
+        with tool_session() as session:
+            service.snooze_card(session, card_id, until)
+            return service.get_card_detail(session, card_id)
+
+    @mcp.tool()
+    def unsnooze_card(card_id: str) -> dict:
+        """Wake a snoozed card now so it shows on the board again."""
+        with tool_session() as session:
+            service.unsnooze_card(session, card_id)
             return service.get_card_detail(session, card_id)
 
     @mcp.tool()

@@ -340,3 +340,46 @@ def test_strict_blocked_card_move_422_with_reason(strict_client):
     assert r.status_code == 422
     assert "blocked by 'c4'" in r.json()["detail"]
     assert strict_client.get("/api/board").headers["ETag"] == version
+
+
+# --- snooze ------------------------------------------------------------------------------
+
+
+def test_snooze_and_unsnooze_card(seeded_client, fixed_today):
+    b = board_of(
+        seeded_client.put("/api/cards/c2/snooze", json={"until": "2026-11-10"})
+    )
+    assert b["cards"]["c2"]["snoozed"] is True
+    assert b["cards"]["c2"]["snoozedUntil"] == "2026-11-10"
+    assert "c2" in column(b, "col1")["cardIds"]  # hidden in place, not moved
+    b = board_of(seeded_client.delete("/api/cards/c2/snooze"))
+    assert b["cards"]["c2"]["snoozed"] is False
+    assert "snoozedUntil" not in b["cards"]["c2"]  # exclude_none drops it
+
+
+def test_snooze_past_date_422_with_reason(seeded_client, fixed_today):
+    r = seeded_client.put("/api/cards/c2/snooze", json={"until": "2026-11-03"})
+    assert r.status_code == 422
+    assert (
+        r.json()["detail"] == "snooze date 2026-11-03 must be after today (2026-11-03)"
+    )
+
+
+def test_snooze_invalid_or_missing_date_422(seeded_client, fixed_today):
+    assert (
+        seeded_client.put("/api/cards/c2/snooze", json={"until": "soon"}).status_code
+        == 422
+    )
+    assert seeded_client.put("/api/cards/c2/snooze", json={}).status_code == 422
+
+
+def test_snooze_unknown_card_404(seeded_client, fixed_today):
+    r = seeded_client.put("/api/cards/nope/snooze", json={"until": "2026-11-10"})
+    assert r.status_code == 404
+    assert seeded_client.delete("/api/cards/nope/snooze").status_code == 404
+
+
+def test_snooze_bumps_board_version(seeded_client, fixed_today):
+    before = seeded_client.get("/api/board").headers["ETag"]
+    r = seeded_client.put("/api/cards/c2/snooze", json={"until": "2026-11-10"})
+    assert r.headers["ETag"] != before

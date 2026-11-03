@@ -107,6 +107,7 @@ function CardTile({
 function BoardColumn({
   column,
   cards,
+  snoozedCount,
   labelMap,
   menuOpen,
   dragging,
@@ -117,6 +118,7 @@ function BoardColumn({
 }: {
   column: Column
   cards: Card[]
+  snoozedCount: number
   labelMap: Record<string, Label>
   menuOpen: boolean
   dragging: string | null
@@ -171,6 +173,12 @@ function BoardColumn({
           </div>
         )}
       </div>
+      {snoozedCount > 0 && (
+        <button className="col-snoozed" onClick={actions.showSnoozed} title="Show snoozed cards">
+          <span className="snooze-icon">⏰</span>
+          {snoozedCount} snoozed
+        </button>
+      )}
       <div className="col-cards">
         {cards.map((card) => (
           <CardTile
@@ -209,22 +217,26 @@ export default function Board({
 }: BoardProps) {
   return (
     <div className="board">
-      {columns.map((col) => (
-        <Fragment key={col.id}>
-          {draggingCol && colDropBefore === col.id && <div className="col-drop-indicator" />}
-          <BoardColumn
-            column={col}
-            cards={col.cardIds.map((id) => cards[id]).filter((c) => c && !c.archived)}
-            labelMap={labelMap}
-            menuOpen={menuColId === col.id}
-            dragging={dragging}
-            dragOverCol={dragOverCol}
-            dragOverCard={dragOverCard}
-            isDragSource={draggingCol === col.id}
-            actions={actions}
-          />
-        </Fragment>
-      ))}
+      {columns.map((col) => {
+        const placed = col.cardIds.map((id) => cards[id]).filter((c) => c && !c.archived)
+        return (
+          <Fragment key={col.id}>
+            {draggingCol && colDropBefore === col.id && <div className="col-drop-indicator" />}
+            <BoardColumn
+              column={col}
+              cards={placed.filter((c) => !c.snoozed)}
+              snoozedCount={placed.filter((c) => c.snoozed).length}
+              labelMap={labelMap}
+              menuOpen={menuColId === col.id}
+              dragging={dragging}
+              dragOverCol={dragOverCol}
+              dragOverCard={dragOverCard}
+              isDragSource={draggingCol === col.id}
+              actions={actions}
+            />
+          </Fragment>
+        )
+      })}
       {draggingCol && colDropBefore === null && <div className="col-drop-indicator" />}
       <div className="add-col" onDragOver={actions.boardEndDragOver} onDrop={(e) => actions.drop(e, '')}>
         <input

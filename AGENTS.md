@@ -93,7 +93,7 @@ in `main.py` for `NotFoundError` / `BoardValidationError`).
 |---|---|
 | Board | `GET /api/board` · `PUT /api/board` (import path; optional `If-Match` → 412 on stale version) · `PATCH /api/board` (subtitle) |
 | Columns | `POST /api/columns` · `PATCH·DELETE /api/columns/{id}` · `POST …/move` · `POST …/sort` · `POST …/archive-all` · `POST …/cards` |
-| Cards | `PATCH·DELETE /api/cards/{id}` · `POST …/move` · `POST …/archive` · `POST …/restore` · `PUT …/due-date` |
+| Cards | `PATCH·DELETE /api/cards/{id}` · `POST …/move` · `POST …/archive` · `POST …/restore` · `PUT …/due-date` · `PUT·DELETE …/snooze` |
 | Card labels | `PUT·DELETE /api/cards/{id}/labels/{labelId}` |
 | Card dependencies | `PUT·DELETE /api/cards/{id}/dependencies/{dependsOnId}` |
 | Checklist | `POST /api/cards/{id}/checklist` · `PATCH·DELETE …/checklist/{itemId}` |
@@ -113,7 +113,7 @@ claude mcp add --transport http tiny-kanban http://127.0.0.1:8000/mcp
 
 All tools are thin wrappers over `service.py` — one tool per query/mutation:
 
-- **Read**: `get_board` · `list_cards(query?, column?, label?, archived?, blocked?)` ·
+- **Read**: `get_board` · `list_cards(query?, column?, label?, archived?, blocked?, snoozed?)` ·
   `get_card(card_id)` (incl. `depends_on` + `blocks`)
 - **Board**: `set_board_subtitle` (header subtitle, stored in `meta`)
 - **Columns**: `add_column` · `rename_column` · `move_column` (reorder) ·
@@ -121,7 +121,8 @@ All tools are thin wrappers over `service.py` — one tool per query/mutation:
   `archive_all_cards`
 - **Cards**: `add_card` (title, description, top/bottom) · `update_card` ·
   `set_card_due_date` ("YYYY-MM-DD", omit to clear) · `move_card` ·
-  `archive_card` · `restore_card` · `delete_card`
+  `archive_card` · `restore_card` · `delete_card` · `snooze_card` (until
+  "YYYY-MM-DD") · `unsnooze_card`
 - **Card dependencies**: `add_card_dependency` · `remove_card_dependency`
 - **Card labels / checklist**: `add_card_label` · `remove_card_label` ·
   `add_checklist_item` · `update_checklist_item` · `delete_checklist_item`
@@ -158,6 +159,24 @@ already there, and `restore_card` stay allowed. `api.py`/`mcp_server.py` pass
 the setting as `strict_dependencies=`. In the board payload, `dependsOn[].resolved` and `blocks` are
 computed by `get_board` and ignored on import.
 
+### Card snooze
+
+`cards.snoozed_until` (ISO "YYYY-MM-DD"): the card is **hidden in place** — it
+keeps its column and position (still listed in `cardIds`) and is hidden while
+`snoozed_until > today`, `today` being the server's local date (`service.today()`,
+monkeypatched in tests via the `fixed_today` fixture). Waking up needs no job:
+`get_board` computes `snoozed` at read time, so it changes with the date without
+a version bump (the UI shows it on its next reload or structural action).
+Rules in `service.py`: the date must be after today (422), archived cards can't
+be snoozed, archiving clears the snooze, snoozing again changes the date,
+`unsnooze_card` wakes it now, moving keeps it snoozed, a snoozed prerequisite is
+still unresolved. `snoozedUntil` is kept after waking up; `snoozed` is computed
+and ignored on import. Drag & drop is safe with hidden cards because `move_card`
+uses an anchor card (`beforeCardId`), never an index.
+UI: Snooze button next to Archive in the card window (quick picks built by
+`frontend/src/dates.ts`), a "N snoozed" link under each column header, and a
+**Snoozed** tab (soonest wake-up first).
+
 ### Frontend contract
 
 `frontend/src/api.ts` is the only file talking to the backend:
@@ -186,8 +205,9 @@ MCP mount), payload builders. Files map to layers: `test_service_mutations.py`
 plus the Phase 1 files.
 **Every new board rule needs tests at the service and HTTP layers.**
 
-**Frontend (minimal by design)** — `cd frontend && npm test`: only `api.ts`
-is covered (debounce, flush ordering, migration). jsdom no longer bundles
+**Frontend (minimal by design)** — `cd frontend && npm test`: `api.ts`
+(debounce, flush ordering, migration) and the snooze quick-pick dates
+(`dates.ts`, local-calendar math). jsdom no longer bundles
 `localStorage`; tests stub it (see `api.test.ts`).
 
 ## How to add an Alembic migration
@@ -235,4 +255,9 @@ board version/ETag, MCP at `/mcp` (Phase 2) · MCP write tools · due dates
 (`cards.due_date`, ISO "YYYY-MM-DD") · column reordering · column sort by label ·
 card dependencies (`card_dependencies`, soft rule) ·
 "Sync failed" banner shows the backend's reason · optional hard dependency
-rule (`KANBAN_STRICT_DEPENDENCIES`).
+rule (`KANBAN_STRICT_DEPENDENCIES`) · card snooze (`cards.snoozed_until`,
+hidden in place, Snoozed tab).
+
+Next (snooze v2): "snooze until its prerequisites are resolved" (wake on
+dependencies instead of a date) · a "just woke up" badge on a card for a day
+after its snooze ends (`snoozedUntil` is kept for this).

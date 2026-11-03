@@ -158,6 +158,24 @@ def set_card_due_date(
     return board_response(session)
 
 
+@router.put("/cards/{card_id}/snooze")
+def snooze_card(
+    card_id: str, body: schemas.CardSnooze, session: Session = Depends(get_session)
+) -> JSONResponse:
+    """Hide the card from the board until a date after today (422 otherwise)."""
+    service.snooze_card(session, card_id, body.until)
+    return board_response(session)
+
+
+@router.delete("/cards/{card_id}/snooze")
+def unsnooze_card(
+    card_id: str, session: Session = Depends(get_session)
+) -> JSONResponse:
+    """Wake a snoozed card now."""
+    service.unsnooze_card(session, card_id)
+    return board_response(session)
+
+
 @router.post("/cards/{card_id}/move")
 def move_card(
     card_id: str,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { CardActions, LabelEditorActions } from '../actions'
 import { PALETTE } from '../config'
+import { formatDay, snoozePresets } from '../dates'
 import type { Card, Column, Label } from '../types'
 import { checklistStats } from './LabelPill'
 
@@ -12,6 +13,7 @@ interface CardModalProps {
   labels: Label[]
   labelEditorOpen: boolean
   colorPickerLabel: string | null
+  snoozeOpenAtStart?: boolean
   actions: CardActions
   labelActions: LabelEditorActions
 }
@@ -23,10 +25,12 @@ export default function CardModal({
   labels,
   labelEditorOpen,
   colorPickerLabel,
+  snoozeOpenAtStart = false,
   actions,
   labelActions,
 }: CardModalProps) {
   const stats = checklistStats(card.checklist)
+  const [snoozeOpen, setSnoozeOpen] = useState(snoozeOpenAtStart)
   const titleRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -62,6 +66,19 @@ export default function CardModal({
             ×
           </button>
         </div>
+
+        {card.snoozed && card.snoozedUntil && (
+          <div className="snooze-banner">
+            <span className="snooze-icon">⏰</span>
+            <span className="snooze-banner-text">Snoozed until {formatDay(card.snoozedUntil)}</span>
+            <button className="link-btn" onClick={() => setSnoozeOpen(true)}>
+              Change
+            </button>
+            <button className="link-btn" onClick={actions.unsnooze}>
+              Wake now
+            </button>
+          </div>
+        )}
 
         <textarea
           ref={titleRef}
@@ -191,10 +208,19 @@ export default function CardModal({
 
         <DependencySection card={card} cards={cards} columns={columns} actions={actions} />
 
+        {snoozeOpen && <SnoozePanel dueDate={card.dueDate} onPick={actions.snooze} onClose={() => setSnoozeOpen(false)} />}
+
         <div className="modal-footer">
-          <button className="btn-archive-card" onClick={actions.archiveCard}>
-            Archive card
-          </button>
+          <div className="footer-actions">
+            {!card.archived && (
+              <button className="btn-archive-card" onClick={() => setSnoozeOpen((v) => !v)}>
+                <span className="snooze-icon">⏰</span> {card.snoozed ? 'Change snooze' : 'Snooze'}
+              </button>
+            )}
+            <button className="btn-archive-card" onClick={actions.archiveCard}>
+              Archive card
+            </button>
+          </div>
           <button className="btn-delete-card" onClick={actions.deleteCard}>
             Delete
           </button>
@@ -357,6 +383,63 @@ function DependencyPicker({
               <span className="dep-where">{where(c)}</span>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Snooze popup: quick picks, or a custom date. The backend refuses dates that
+ *  aren't after today; this only warns when a date lands after the due date. */
+function SnoozePanel({
+  dueDate,
+  onPick,
+  onClose,
+}: {
+  dueDate?: string
+  onPick: (until: string) => void
+  onClose: () => void
+}) {
+  const [custom, setCustom] = useState('')
+  const presets = snoozePresets()
+  const afterDue = (date: string) => !!dueDate && date > dueDate
+  const warn = presets.some((p) => afterDue(p.date)) || afterDue(custom)
+
+  return (
+    <div className="snooze-panel">
+      <div className="section-row">
+        <div className="section-label">SNOOZE UNTIL</div>
+        <button className="link-btn" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+      <div className="snooze-presets">
+        {presets.map((p) => (
+          <button key={p.label} className="snooze-preset" onClick={() => onPick(p.date)}>
+            <span>{p.label}</span>
+            <span className="snooze-preset-date">
+              {afterDue(p.date) && '⚠ '}
+              {formatDay(p.date)}
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="snooze-custom">
+        <input
+          type="date"
+          className="due-input"
+          min={presets[0].date}
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          aria-label="Snooze until date"
+        />
+        <button className="btn-restore" disabled={!custom} onClick={() => onPick(custom)}>
+          {afterDue(custom) && '⚠ '}Snooze
+        </button>
+      </div>
+      {warn && dueDate && (
+        <div className="snooze-warning">
+          ⚠ wakes the card after its due date ({formatDay(dueDate)})
         </div>
       )}
     </div>

@@ -60,6 +60,8 @@ WRITE_TOOLS = {
     "delete_label",
     "add_card_dependency",
     "remove_card_dependency",
+    "snooze_card",
+    "unsnooze_card",
 }
 
 

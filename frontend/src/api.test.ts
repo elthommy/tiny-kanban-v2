@@ -9,7 +9,17 @@ const board: BoardData = {
   subtitle: 'Product · Sprint 24',
   columns: [{ id: 'col1', title: 'To Do', cardIds: ['c1'] }],
   cards: {
-    c1: { id: 'c1', title: 'A card', labels: [], checklist: [], description: '', archived: false, dependsOn: [], blocks: [] },
+    c1: {
+      id: 'c1',
+      title: 'A card',
+      labels: [],
+      checklist: [],
+      description: '',
+      archived: false,
+      dependsOn: [],
+      blocks: [],
+      snoozed: false,
+    },
   },
   labels: [],
 }

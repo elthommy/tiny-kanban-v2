@@ -372,3 +372,29 @@ def test_strict_blocked_move_error_reaches_model(strict_client):
         strict_client, "move_card", {"card_id": "c1", "to_column": "Done"}
     )
     assert "blocked by 'c4'" in message
+
+
+# --- snooze ------------------------------------------------------------------------
+
+
+def test_snooze_and_unsnooze_card(seeded_client, fixed_today):
+    detail = tool_result(
+        seeded_client, "snooze_card", {"card_id": "c2", "until": "2026-11-10"}
+    )
+    assert detail["snoozed"] is True and detail["snoozed_until"] == "2026-11-10"
+    assert rest_board(seeded_client)["cards"]["c2"]["snoozed"] is True
+    detail = tool_result(seeded_client, "unsnooze_card", {"card_id": "c2"})
+    assert detail["snoozed"] is False and detail["snoozed_until"] is None
+
+
+def test_snooze_past_date_reports_tool_error(seeded_client, fixed_today):
+    message = call_tool_error(
+        seeded_client, "snooze_card", {"card_id": "c2", "until": "2026-11-01"}
+    )
+    assert "must be after today (2026-11-03)" in message
+
+
+def test_list_cards_snoozed_filter(seeded_client, fixed_today):
+    tool_result(seeded_client, "snooze_card", {"card_id": "c2", "until": "2026-11-10"})
+    result = call_tool(seeded_client, "list_cards", {"snoozed": True})
+    assert [c["id"] for c in result["structuredContent"]["result"]] == ["c2"]

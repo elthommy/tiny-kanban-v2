@@ -43,16 +43,36 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def _validated_due_date(value: str | None) -> str | None:
-    """Due dates are plain ISO dates ("YYYY-MM-DD") — no time, no timezone."""
+def today() -> date:
+    """The server's local calendar date (the app runs on the user's machine).
+
+    A function rather than inline date.today() so tests can pin the date.
+    """
+    return date.today()
+
+
+def _validated_date(value: str | None, what: str = "due date") -> str | None:
+    """Card dates are plain ISO dates ("YYYY-MM-DD") — no time, no timezone."""
     if value is None:
         return None
     try:
         return date.fromisoformat(value).isoformat()
     except ValueError:
         raise BoardValidationError(
-            f"invalid due date {value!r}, expected YYYY-MM-DD"
+            f"invalid {what} {value!r}, expected YYYY-MM-DD"
         ) from None
+
+
+def _is_snoozed(card: models.Card, today_iso: str) -> bool:
+    """Snoozed = hidden from the board until a date strictly after today.
+
+    ISO dates compare correctly as strings. Archived cards are never snoozed.
+    """
+    return (
+        not card.archived
+        and card.snoozed_until is not None
+        and card.snoozed_until > today_iso
+    )
 
 
 class BoardValidationError(ValueError):
@@ -121,6 +141,7 @@ def get_board(session: Session) -> BoardData:
     cards_by_column = _cards_by_column(cards)
     done_column_id = columns[-1].id if columns else None
     depends_on, blocks = _dependency_schemas(session, cards, done_column_id)
+    today_iso = today().isoformat()
 
     return BoardData(
         subtitle=get_subtitle(session),
@@ -143,6 +164,8 @@ def get_board(session: Session) -> BoardData:
                 archivedFrom=card.archived_from,
                 archivedAt=card.archived_at,
                 dueDate=card.due_date,
+                snoozedUntil=card.snoozed_until,
+                snoozed=_is_snoozed(card, today_iso),
                 dependsOn=depends_on.get(card.id, []),
                 blocks=blocks.get(card.id, []),
             )
@@ -221,7 +244,8 @@ def validate_board(board: BoardData) -> None:
             raise BoardValidationError(
                 f"duplicate checklist item id on card {card.id!r}"
             )
-        _validated_due_date(card.dueDate)
+        _validated_date(card.dueDate)
+        _validated_date(card.snoozedUntil, "snooze date")
 
     for key, card in board.cards.items():
         if key != card.id:
@@ -291,6 +315,8 @@ def replace_board(session: Session, board: BoardData) -> None:
                 archived_from=card.archivedFrom,
                 archived_at=card.archivedAt,
                 due_date=card.dueDate,
+                # Archived cards are never snoozed (same rule as archive_card)
+                snoozed_until=None if card.archived else card.snoozedUntil,
                 column_id=column_id,
                 position=position,
             )
@@ -396,7 +422,9 @@ def _place_cards(cards: list[models.Card], column_id: str) -> None:
 
 
 def _archive_card_row(session: Session, card: models.Card) -> None:
+    """Move a card to the archive, remembering where it came from."""
     card.archived = True
+    card.snoozed_until = None  # an archived card has nothing to wake up for
     card.archived_from = card.column_id
     card.archived_at = now_ms()
     card.column_id = None
@@ -533,7 +561,36 @@ def update_card_text(
 
 def set_card_due_date(session: Session, card_id: str, due_date: str | None) -> None:
     """Set or clear (None) a card's due date."""
-    _card(session, card_id).due_date = _validated_due_date(due_date)
+    _card(session, card_id).due_date = _validated_date(due_date)
+    _finalize(session)
+
+
+def snooze_card(session: Session, card_id: str, until: str) -> None:
+    """Hide a card from the board until `until` (ISO date, after today).
+
+    The card keeps its column and position; it reappears on that date with no
+    action needed. Snoozing an already snoozed card changes its wake-up date.
+    """
+    card = _card(session, card_id)
+    if card.archived:
+        raise BoardValidationError(
+            f"card {card_id!r} is archived and cannot be snoozed"
+        )
+    until = _validated_date(until, "snooze date")
+    if until <= today().isoformat():
+        raise BoardValidationError(
+            f"snooze date {until} must be after today ({today().isoformat()})"
+        )
+    card.snoozed_until = until
+    _finalize(session)
+
+
+def unsnooze_card(session: Session, card_id: str) -> None:
+    """Wake a snoozed card now (no-op if it is not snoozed)."""
+    card = _card(session, card_id)
+    if card.snoozed_until is None:
+        return
+    card.snoozed_until = None
     _finalize(session)
 
 
@@ -872,6 +929,8 @@ def card_summary(session: Session, card: models.Card) -> dict:
         "checklist_total": len(items),
         "due_date": card.due_date,
         "archived": card.archived,
+        "snoozed_until": card.snoozed_until,
+        "snoozed": _is_snoozed(card, today().isoformat()),
         "depends_on": depends_on,
         "blocked": any(not dep["resolved"] for dep in depends_on),
     }
@@ -927,6 +986,7 @@ def search_cards(
     label: str | None = None,
     archived: bool | None = None,
     blocked: bool | None = None,
+    snoozed: bool | None = None,
 ) -> list[dict]:
     """Filterable card listing. `column`/`label` match by id or (case-insensitive) name."""
     results = []
@@ -935,6 +995,8 @@ def search_cards(
         if archived is not None and card.archived != archived:
             continue
         if blocked is not None and summary["blocked"] != blocked:
+            continue
+        if snoozed is not None and summary["snoozed"] != snoozed:
             continue
         if column is not None:
             col = (

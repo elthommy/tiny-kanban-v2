@@ -1,10 +1,12 @@
 from collections.abc import Iterator
+from datetime import date
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from tiny_kanban import service
 from tiny_kanban.config import Settings
 from tiny_kanban.db import make_engine, make_session_factory
 from tiny_kanban.main import create_app, run_migrations
@@ -66,6 +68,17 @@ def strict_client(tmp_path: Path) -> Iterator[TestClient]:
         yield c
 
 
+# Snooze tests pin "today" so wake-up dates are deterministic.
+TODAY = date(2026, 11, 3)
+
+
+@pytest.fixture
+def fixed_today(monkeypatch: pytest.MonkeyPatch) -> date:
+    """Pin service.today() to TODAY (2026-11-03); return it."""
+    monkeypatch.setattr(service, "today", lambda: TODAY)
+    return TODAY
+
+
 # --- payload builders -------------------------------------------------------
 
 
@@ -83,6 +96,7 @@ def make_card(id: str = "c1", title: str = "A card", **overrides) -> dict:
         "archived": False,
         "dependsOn": [],
         "blocks": [],
+        "snoozed": False,
     }
     card.update(overrides)
     return card
