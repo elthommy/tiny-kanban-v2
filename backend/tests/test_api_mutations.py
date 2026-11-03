@@ -383,3 +383,35 @@ def test_snooze_bumps_board_version(seeded_client, fixed_today):
     before = seeded_client.get("/api/board").headers["ETag"]
     r = seeded_client.put("/api/cards/c2/snooze", json={"until": "2026-11-10"})
     assert r.headers["ETag"] != before
+
+
+# --- snooze until resolved ----------------------------------------------------------
+
+
+def test_snooze_until_resolved_then_wake_on_resolution(seeded_client, fixed_today):
+    board_of(seeded_client.put("/api/cards/c2/dependencies/c1"))
+    b = board_of(seeded_client.put("/api/cards/c2/snooze-until-resolved"))
+    assert b["cards"]["c2"]["snoozed"] is True
+    assert b["cards"]["c2"]["snoozedUntilResolved"] is True
+    b = board_of(seeded_client.post("/api/cards/c1/move", json={"toColumnId": "col4"}))
+    card = b["cards"]["c2"]
+    assert card["snoozed"] is False and card["snoozedUntilResolved"] is False
+    assert card["snoozedUntil"] == "2026-11-03" and card["justWokeUp"] is True
+
+
+def test_snooze_until_resolved_without_prerequisite_422(seeded_client, fixed_today):
+    r = seeded_client.put("/api/cards/c2/snooze-until-resolved")
+    assert r.status_code == 422
+    assert r.json()["detail"] == "card 'c2' has no unresolved prerequisites to wait for"
+
+
+def test_snooze_until_resolved_unknown_card_404(seeded_client):
+    assert seeded_client.put("/api/cards/nope/snooze-until-resolved").status_code == 404
+
+
+def test_unsnooze_wakes_card_snoozed_until_resolved(seeded_client, fixed_today):
+    seeded_client.put("/api/cards/c2/dependencies/c1")
+    seeded_client.put("/api/cards/c2/snooze-until-resolved")
+    b = board_of(seeded_client.delete("/api/cards/c2/snooze"))
+    assert b["cards"]["c2"]["snoozed"] is False
+    assert b["cards"]["c2"]["justWokeUp"] is False

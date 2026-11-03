@@ -1050,6 +1050,9 @@ textarea {
   font-weight: 500;
   color: #8b8698;
 }
+.snooze-preset-wide {
+  grid-column: 1 / -1;
+}
 .snooze-custom {
   display: flex;
   align-items: center;
@@ -1082,4 +1085,20 @@ textarea {
   .snooze-presets {
     grid-template-columns: 1fr;
   }
+}
+.woke-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #1f3a2c;
+  color: #5fc28e;
+}
+.card-title + .woke-badge {
+  margin-left: 0;
 }

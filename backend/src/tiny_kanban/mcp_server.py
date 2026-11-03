@@ -77,7 +77,9 @@ def build_mcp(settings: Settings) -> MCPServer:
     def get_board() -> dict:
         """The full board: ordered columns with their card ids, all cards
         (including archived and snoozed ones — `snoozed: true` cards are
-        hidden from the UI until `snoozedUntil`), and the shared labels."""
+        hidden from the UI until `snoozedUntil`, or until their prerequisites are
+        resolved when `snoozedUntilResolved`; `justWokeUp: true` cards came back
+        today), and the shared labels."""
         with tool_session() as session:
             return service.get_board(session).model_dump(exclude_none=True)
 
@@ -98,8 +100,8 @@ def build_mcp(settings: Settings) -> MCPServer:
         blocked: True for cards with an unresolved dependency, False for cards
         that are free to start (a dependency is resolved once its card is in
         the rightmost column or archived).
-        snoozed: True for cards hidden from the board until a later date,
-        False for cards currently visible or archived.
+        snoozed: True for cards hidden from the board until a later date or
+        until their prerequisites are resolved, False for cards currently visible or archived.
         """
         with tool_session() as session:
             return service.search_cards(
@@ -222,6 +224,19 @@ def build_mcp(settings: Settings) -> MCPServer:
         """
         with tool_session() as session:
             service.snooze_card(session, card_id, until)
+            return service.get_card_detail(session, card_id)
+
+    @mcp.tool()
+    def snooze_card_until_resolved(card_id: str) -> dict:
+        """Hide a card from the board until all its prerequisites are resolved
+        (archived or in the last column).
+
+        The card keeps its column and position and reappears by itself as soon
+        as its last prerequisite is resolved. Fails if none is pending.
+        Replaces a date snooze.
+        """
+        with tool_session() as session:
+            service.snooze_card_until_resolved(session, card_id)
             return service.get_card_detail(session, card_id)
 
     @mcp.tool()

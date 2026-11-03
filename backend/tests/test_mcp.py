@@ -61,6 +61,7 @@ WRITE_TOOLS = {
     "add_card_dependency",
     "remove_card_dependency",
     "snooze_card",
+    "snooze_card_until_resolved",
     "unsnooze_card",
 }
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, false
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -41,6 +41,11 @@ class Card(Base):
     # ISO date "YYYY-MM-DD": the card is hidden from the board while this is
     # after today (server local date). NULL when the card was never snoozed.
     snoozed_until: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Hidden until all its prerequisites are resolved. Cleared by the mutation
+    # that resolves the last one, which also sets snoozed_until to that day.
+    snoozed_until_resolved: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     # NULL for archived/orphan cards
     column_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("columns.id", ondelete="CASCADE"), nullable=True

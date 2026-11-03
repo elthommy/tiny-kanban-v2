@@ -112,3 +112,19 @@ def test_add_dependency_shows_blocked_badge(board_page: Page):
     expect(
         card(page, "Redesign onboarding flow").locator(".dep-badge")
     ).to_contain_text("0/1")
+
+
+def test_snooze_until_prerequisites_done_then_just_woke_up(board_page: Page, app_url):
+    page = board_page
+    page.request.put(f"{app_url}/api/cards/c2/dependencies/c4")
+    page.reload()
+    card(page, "Conduct 5 user interviews").click()
+    page.locator(".modal-footer").get_by_role("button", name="Snooze").click()
+    page.locator(".snooze-preset", has_text="Until its prerequisites are done").click()
+    expect(card(page, "Conduct 5 user interviews")).to_have_count(0)
+
+    card(page, "Payment webhook timing out").click()
+    page.get_by_role("button", name="Archive card").click()  # resolves c4
+    expect(card(page, "Conduct 5 user interviews").locator(".woke-badge")).to_have_text(
+        "⏰Just woke up"
+    )

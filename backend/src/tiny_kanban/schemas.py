@@ -47,8 +47,13 @@ class CardSchema(Schema):
     dueDate: str | None = None  # ISO date "YYYY-MM-DD"
     # ISO date "YYYY-MM-DD"; kept after the card wakes up
     snoozedUntil: str | None = None
-    # Computed by get_board (snoozedUntil is after today); ignored on import
+    # Hidden until all prerequisites are resolved (then snoozedUntil = wake day)
+    snoozedUntilResolved: bool = False
+    # Computed by get_board (snoozedUntil is after today, or snoozedUntilResolved);
+    # ignored on import
     snoozed: bool = False
+    # Computed by get_board (woke up from a snooze today); ignored on import
+    justWokeUp: bool = False
     dependsOn: list[DependencySchema] = []
     # Computed by get_board (ids of cards that depend on this one); ignored on import
     blocks: list[str] = []

@@ -398,3 +398,25 @@ def test_list_cards_snoozed_filter(seeded_client, fixed_today):
     tool_result(seeded_client, "snooze_card", {"card_id": "c2", "until": "2026-11-10"})
     result = call_tool(seeded_client, "list_cards", {"snoozed": True})
     assert [c["id"] for c in result["structuredContent"]["result"]] == ["c2"]
+
+
+def test_snooze_card_until_resolved(seeded_client, fixed_today):
+    tool_result(
+        seeded_client,
+        "add_card_dependency",
+        {"card_id": "c2", "depends_on_card_id": "c1"},
+    )
+    detail = tool_result(seeded_client, "snooze_card_until_resolved", {"card_id": "c2"})
+    assert detail["snoozed"] is True and detail["snoozed_until_resolved"] is True
+    tool_result(seeded_client, "archive_card", {"card_id": "c1"})
+    detail = tool_result(seeded_client, "get_card", {"card_id": "c2"})
+    assert detail["snoozed"] is False and detail["just_woke_up"] is True
+
+
+def test_snooze_card_until_resolved_without_prerequisite_tool_error(
+    seeded_client, fixed_today
+):
+    message = call_tool_error(
+        seeded_client, "snooze_card_until_resolved", {"card_id": "c2"}
+    )
+    assert "no unresolved prerequisites" in message

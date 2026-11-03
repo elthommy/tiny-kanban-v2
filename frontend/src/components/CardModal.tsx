@@ -67,10 +67,14 @@ export default function CardModal({
           </button>
         </div>
 
-        {card.snoozed && card.snoozedUntil && (
+        {card.snoozed && (
           <div className="snooze-banner">
             <span className="snooze-icon">⏰</span>
-            <span className="snooze-banner-text">Snoozed until {formatDay(card.snoozedUntil)}</span>
+            <span className="snooze-banner-text">
+              {card.snoozedUntilResolved
+                ? 'Snoozed until its prerequisites are done'
+                : `Snoozed until ${card.snoozedUntil ? formatDay(card.snoozedUntil) : '?'}`}
+            </span>
             <button className="link-btn" onClick={() => setSnoozeOpen(true)}>
               Change
             </button>
@@ -208,7 +212,15 @@ export default function CardModal({
 
         <DependencySection card={card} cards={cards} columns={columns} actions={actions} />
 
-        {snoozeOpen && <SnoozePanel dueDate={card.dueDate} onPick={actions.snooze} onClose={() => setSnoozeOpen(false)} />}
+        {snoozeOpen && (
+          <SnoozePanel
+            dueDate={card.dueDate}
+            waitable={card.dependsOn.some((d) => !d.resolved)}
+            onPick={actions.snooze}
+            onPickUntilResolved={actions.snoozeUntilResolved}
+            onClose={() => setSnoozeOpen(false)}
+          />
+        )}
 
         <div className="modal-footer">
           <div className="footer-actions">
@@ -389,15 +401,20 @@ function DependencyPicker({
   )
 }
 
-/** Snooze popup: quick picks, or a custom date. The backend refuses dates that
- *  aren't after today; this only warns when a date lands after the due date. */
+/** Snooze popup: quick picks, "until its prerequisites are done" (offered when
+ *  one is unresolved), or a custom date. The backend enforces the rules; this
+ *  only warns when a date lands after the due date. */
 function SnoozePanel({
   dueDate,
+  waitable,
   onPick,
+  onPickUntilResolved,
   onClose,
 }: {
   dueDate?: string
+  waitable: boolean
   onPick: (until: string) => void
+  onPickUntilResolved: () => void
   onClose: () => void
 }) {
   const [custom, setCustom] = useState('')
@@ -423,6 +440,12 @@ function SnoozePanel({
             </span>
           </button>
         ))}
+        {waitable && (
+          <button className="snooze-preset snooze-preset-wide" onClick={onPickUntilResolved}>
+            <span>Until its prerequisites are done</span>
+            <span className="snooze-preset-date">⛓</span>
+          </button>
+        )}
       </div>
       <div className="snooze-custom">
         <input

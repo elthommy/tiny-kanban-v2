@@ -96,7 +96,9 @@ def make_card(id: str = "c1", title: str = "A card", **overrides) -> dict:
         "archived": False,
         "dependsOn": [],
         "blocks": [],
+        "snoozedUntilResolved": False,
         "snoozed": False,
+        "justWokeUp": False,
     }
     card.update(overrides)
     return card

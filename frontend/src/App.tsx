@@ -241,6 +241,11 @@ function KanbanApp({ initial }: { initial: BoardData }) {
       apply(api.snoozeCard(openCardId, until))
       setOpenCardId(null)
     },
+    snoozeUntilResolved: () => {
+      if (!openCardId) return
+      apply(api.snoozeCardUntilResolved(openCardId))
+      setOpenCardId(null)
+    },
     unsnooze: () => openCardId && apply(api.unsnoozeCard(openCardId)),
     archiveCard: () => {
       if (!openCardId) return
@@ -297,10 +302,11 @@ function KanbanApp({ initial }: { initial: BoardData }) {
     return m
   }, [data.columns])
 
-  // Snoozed cards (computed by the backend), soonest wake-up first
+  // Snoozed cards (computed by the backend), soonest wake-up first; cards
+  // waiting for their prerequisites have no date and come last
   const snoozed = useMemo(() => {
     const list = Object.values(data.cards).filter((c) => c.snoozed)
-    list.sort((a, b) => (a.snoozedUntil ?? '').localeCompare(b.snoozedUntil ?? ''))
+    list.sort((a, b) => (a.snoozedUntil ?? '9999').localeCompare(b.snoozedUntil ?? '9999'))
     return list
   }, [data.cards])
 
@@ -315,7 +321,7 @@ function KanbanApp({ initial }: { initial: BoardData }) {
       setOpenCardId(cardId)
       setSnoozeOpenAtStart(false)
     },
-    changeDate: (cardId) => {
+    changeSnooze: (cardId) => {
       setOpenCardId(cardId)
       setSnoozeOpenAtStart(true)
     },

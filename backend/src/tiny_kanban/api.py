@@ -167,6 +167,15 @@ def snooze_card(
     return board_response(session)
 
 
+@router.put("/cards/{card_id}/snooze-until-resolved")
+def snooze_card_until_resolved(
+    card_id: str, session: Session = Depends(get_session)
+) -> JSONResponse:
+    """Hide the card until its prerequisites are resolved (422 if none is pending)."""
+    service.snooze_card_until_resolved(session, card_id)
+    return board_response(session)
+
+
 @router.delete("/cards/{card_id}/snooze")
 def unsnooze_card(
     card_id: str, session: Session = Depends(get_session)

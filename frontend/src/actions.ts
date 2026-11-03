@@ -36,6 +36,7 @@ export interface CardActions {
   removeDependency: (dependsOnId: string) => void
   openCard: (cardId: string) => void
   snooze: (until: string) => void
+  snoozeUntilResolved: () => void
   unsnooze: () => void
   archiveCard: () => void
   deleteCard: () => void
@@ -52,7 +53,7 @@ export interface LabelEditorActions {
 
 export interface SnoozedActions {
   openCard: (cardId: string) => void
-  changeDate: (cardId: string) => void // opens the card with its snooze popup
+  changeSnooze: (cardId: string) => void // opens the card with its snooze popup
   unsnooze: (cardId: string) => void
 }
 
