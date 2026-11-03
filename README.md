@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/2d0bec4f-3922-4ad5-82a7-e473bcc66db5
 <sub>Music: "Happy Beats / Business Moves Vol. 1" by Sascha Ende, [ende.app](https://ende.app) — licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).</sub>
 
 ## Dashboard
-![Board with labels, checklist progress, due-date badges (overdue, due soon, upcoming) and snoozed-card counts](./doc/screenshots/tiny-kanban-v2_dashboard.png)
+![Board with labels, checklist progress, due-date badges (overdue, due soon, upcoming), snoozed-card counts and a just-woke-up badge](./doc/screenshots/tiny-kanban-v2_dashboard.png)
 ## Card
 ![Card details: labels, due date, description, checklist, dependencies, snooze and archive](./doc/screenshots/tiny-kanban-v2_card.png)
 
@@ -36,10 +36,10 @@ https://github.com/user-attachments/assets/2d0bec4f-3922-4ad5-82a7-e473bcc66db5
 ![Column menu: add a card, sort by label, archive all cards, delete column](./doc/screenshots/tiny-kanban-v2_column-menu.png)
 
 ### Snooze
-![Snooze popup: tomorrow, next Monday, in 1 week, in 1 month or a custom date, with a warning for dates after the due date](./doc/screenshots/tiny-kanban-v2_snooze.png)
+![Snooze popup: tomorrow, next Monday, in 1 week, in 1 month, until its prerequisites are done or a custom date, with a warning for dates after the due date](./doc/screenshots/tiny-kanban-v2_snooze.png)
 
 ### Snoozed cards
-![Snoozed cards by wake-up date, with change date and wake now](./doc/screenshots/tiny-kanban-v2_snoozed.png)
+![Snoozed cards by wake-up date, then those waiting for prerequisites, with change snooze and wake now](./doc/screenshots/tiny-kanban-v2_snoozed.png)
 
 ### Archive
 ![Archived cards with search, restore to original column, or delete](./doc/screenshots/tiny-kanban-v2_archive.png)
@@ -65,11 +65,13 @@ Ports and the database path are configurable — copy `.env.example` to `.env`.
 - Card modal: edit title & description, toggle labels, checklist with progress
   bar, snooze, archive or delete
 - Snooze: hide a card until a date (tomorrow, next Monday, in 1 week/month, or
-  any date); it stays in its column and reappears on its own. Each column shows
-  how many cards are snoozed
+  any date) or until its prerequisites are done; it stays in its column and
+  reappears on its own with a "Just woke up" badge for the day. Each column
+  shows how many cards are snoozed
 - Labels: shared across the board — create, rename, recolor (8-color palette),
   delete from the "Edit labels" panel in the card modal
-- Snoozed view: cards by wake-up date — wake now or change the date
+- Snoozed view: cards by wake-up date (then those waiting for prerequisites) —
+  wake now or change the snooze
 - Archive view: search, restore to the original column, permanently delete
 
 Behavior toggles (confirmation dialogs, new-card position, archive sort order)

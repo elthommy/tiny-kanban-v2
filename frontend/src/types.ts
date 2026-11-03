@@ -28,7 +28,9 @@ export interface Card {
   archivedAt?: number
   dueDate?: string // ISO date "YYYY-MM-DD"
   snoozedUntil?: string // ISO date "YYYY-MM-DD", kept after the card wakes up
-  snoozed: boolean // computed by the backend: hidden from the board until snoozedUntil
+  snoozedUntilResolved: boolean // hidden until all prerequisites are resolved
+  snoozed: boolean // computed by the backend: hidden (until snoozedUntil, or until resolved)
+  justWokeUp: boolean // computed by the backend: the snooze ended today
   dependsOn: Dependency[]
   blocks: string[] // computed by the backend: ids of cards depending on this one
 }

@@ -143,6 +143,7 @@ export const api = {
   setCardDueDate: (cardId: string, dueDate: string | null) =>
     mutate(`/api/cards/${id(cardId)}/due-date`, 'PUT', { dueDate }),
   snoozeCard: (cardId: string, until: string) => mutate(`/api/cards/${id(cardId)}/snooze`, 'PUT', { until }),
+  snoozeCardUntilResolved: (cardId: string) => mutate(`/api/cards/${id(cardId)}/snooze-until-resolved`, 'PUT'),
   unsnoozeCard: (cardId: string) => mutate(`/api/cards/${id(cardId)}/snooze`, 'DELETE'),
 
   // card labels

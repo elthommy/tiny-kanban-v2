@@ -50,3 +50,12 @@ def test_cards_column_fk_cascades(migrated_settings: Settings):
         fk["referred_table"] == "columns" and fk["options"].get("ondelete") == "CASCADE"
         for fk in fks
     )
+
+
+def test_cards_snoozed_until_resolved_defaults_to_false(migrated_settings: Settings):
+    engine = make_engine(migrated_settings)
+    columns = {c["name"]: c for c in inspect(engine).get_columns("cards")}
+    engine.dispose()
+    column = columns["snoozed_until_resolved"]
+    assert column["nullable"] is False
+    assert column["default"] in ("0", "false")

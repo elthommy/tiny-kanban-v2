@@ -91,6 +91,12 @@ function CardTile({
             {depsDone}/{depsTotal}
           </div>
         )}
+        {card.justWokeUp && (
+          <div className="woke-badge" title="Back from snooze today">
+            <span className="snooze-icon">⏰</span>
+            Just woke up
+          </div>
+        )}
         {stats.has && (
           <div className="progress-row">
             <div className="progress-track">

@@ -910,3 +910,148 @@ def test_card_summary_snooze_fields(seeded, fixed_today):
     service.snooze_card(seeded, "c2", "2026-11-10")
     detail = service.get_card_detail(seeded, "c2")
     assert detail["snoozed_until"] == "2026-11-10" and detail["snoozed"] is True
+
+
+# --- snooze until resolved / just woke up -------------------------------------------
+
+
+@pytest.fixture
+def waiting(seeded, fixed_today):
+    """c2 (To Do) depends on c1 (To Do) and is snoozed until it is resolved."""
+    service.add_card_dependency(seeded, "c2", "c1")
+    service.snooze_card_until_resolved(seeded, "c2")
+    return seeded
+
+
+def test_snooze_until_resolved_hides_card_in_place(waiting):
+    card = board(waiting).cards["c2"]
+    assert card.snoozed is True and card.snoozedUntilResolved is True
+    assert card.snoozedUntil is None and card.justWokeUp is False
+    assert column_cards(waiting, "col1") == ["c1", "c2", "c3"]
+
+
+def test_snooze_until_resolved_stays_hidden_while_date_passes(waiting, monkeypatch):
+    monkeypatch.setattr(service, "today", lambda: date(2027, 1, 1))
+    assert board(waiting).cards["c2"].snoozed is True
+
+
+def test_resolving_prerequisite_by_move_wakes_card(waiting):
+    service.move_card(waiting, "c1", "col4")
+    card = board(waiting).cards["c2"]
+    assert card.snoozed is False and card.snoozedUntilResolved is False
+    assert card.snoozedUntil == "2026-11-03"  # the day it woke up
+    assert card.justWokeUp is True
+
+
+@pytest.mark.parametrize(
+    "resolve",
+    [
+        lambda s: service.archive_card(s, "c1"),
+        lambda s: service.delete_card(s, "c1"),
+        lambda s: service.remove_card_dependency(s, "c2", "c1"),
+        lambda s: service.move_column(s, "col1"),  # To Do becomes the last column
+    ],
+    ids=["archive", "delete", "unlink", "column-reorder"],
+)
+def test_any_resolving_mutation_wakes_card(waiting, resolve):
+    resolve(waiting)
+    assert board(waiting).cards["c2"].snoozed is False
+    assert board(waiting).cards["c2"].justWokeUp is True
+
+
+def test_card_waits_for_all_prerequisites(waiting):
+    service.snooze_card(waiting, "c2", "2026-11-10")  # switch back to add a link
+    service.add_card_dependency(waiting, "c2", "c3")
+    service.snooze_card_until_resolved(waiting, "c2")
+    service.move_card(waiting, "c1", "col4")
+    assert board(waiting).cards["c2"].snoozed is True
+    service.archive_card(waiting, "c3")
+    assert board(waiting).cards["c2"].snoozed is False
+
+
+def test_wake_up_on_resolution_is_final(waiting):
+    service.move_card(waiting, "c1", "col4")
+    service.move_card(waiting, "c1", "col1")  # prerequisite unresolved again
+    assert board(waiting).cards["c2"].snoozed is False
+
+
+def test_unrelated_mutation_does_not_wake_card(waiting):
+    service.set_subtitle(waiting, "Sprint 25")
+    assert board(waiting).cards["c2"].snoozed is True
+
+
+def test_snooze_until_resolved_without_pending_prerequisite_rejected(
+    seeded, fixed_today
+):
+    with pytest.raises(BoardValidationError, match="no unresolved prerequisites"):
+        service.snooze_card_until_resolved(seeded, "c2")
+    service.add_card_dependency(seeded, "c2", "c8")  # c8 is in Done
+    with pytest.raises(BoardValidationError, match="no unresolved prerequisites"):
+        service.snooze_card_until_resolved(seeded, "c2")
+
+
+def test_snooze_until_resolved_archived_card_rejected(seeded, fixed_today):
+    service.add_card_dependency(seeded, "c2", "c1")
+    service.archive_card(seeded, "c2")
+    with pytest.raises(BoardValidationError, match="archived"):
+        service.snooze_card_until_resolved(seeded, "c2")
+
+
+def test_snooze_until_resolved_unknown_card_404(seeded):
+    with pytest.raises(NotFoundError):
+        service.snooze_card_until_resolved(seeded, "nope")
+
+
+def test_snooze_until_resolved_replaces_date_snooze_and_back(seeded, fixed_today):
+    service.add_card_dependency(seeded, "c2", "c1")
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    service.snooze_card_until_resolved(seeded, "c2")
+    card = board(seeded).cards["c2"]
+    assert card.snoozedUntil is None and card.snoozedUntilResolved is True
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    card = board(seeded).cards["c2"]
+    assert card.snoozedUntil == "2026-11-10" and card.snoozedUntilResolved is False
+
+
+def test_unsnooze_wakes_card_snoozed_until_resolved(waiting):
+    service.unsnooze_card(waiting, "c2")
+    card = board(waiting).cards["c2"]
+    assert card.snoozed is False and card.snoozedUntilResolved is False
+    assert card.justWokeUp is False  # woken by hand: no badge
+
+
+def test_archive_clears_snooze_until_resolved(waiting):
+    service.archive_card(waiting, "c2")
+    service.restore_card(waiting, "c2")
+    card = board(waiting).cards["c2"]
+    assert card.snoozed is False and card.snoozedUntilResolved is False
+
+
+def test_import_keeps_snooze_until_resolved(waiting):
+    service.replace_board(waiting, board(waiting))
+    assert board(waiting).cards["c2"].snoozedUntilResolved is True
+
+
+def test_import_wakes_card_with_nothing_left_to_wait_for(waiting):
+    data = board(waiting)
+    data.cards["c2"].dependsOn = []
+    service.replace_board(waiting, data)
+    card = board(waiting).cards["c2"]
+    assert card.snoozed is False and card.justWokeUp is True
+
+
+def test_just_woke_up_lasts_the_wake_day(seeded, fixed_today, monkeypatch):
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    assert board(seeded).cards["c2"].justWokeUp is False  # still snoozed
+    monkeypatch.setattr(service, "today", lambda: date(2026, 11, 10))
+    assert board(seeded).cards["c2"].justWokeUp is True
+    monkeypatch.setattr(service, "today", lambda: date(2026, 11, 11))
+    assert board(seeded).cards["c2"].justWokeUp is False
+
+
+def test_card_summary_reports_snooze_until_resolved_and_wake(waiting):
+    summary = service.get_card_detail(waiting, "c2")
+    assert summary["snoozed_until_resolved"] is True and summary["snoozed"] is True
+    service.move_card(waiting, "c1", "col4")
+    summary = service.get_card_detail(waiting, "c2")
+    assert summary["just_woke_up"] is True and summary["snoozed"] is False

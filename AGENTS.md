@@ -93,7 +93,7 @@ in `main.py` for `NotFoundError` / `BoardValidationError`).
 |---|---|
 | Board | `GET /api/board` · `PUT /api/board` (import path; optional `If-Match` → 412 on stale version) · `PATCH /api/board` (subtitle) |
 | Columns | `POST /api/columns` · `PATCH·DELETE /api/columns/{id}` · `POST …/move` · `POST …/sort` · `POST …/archive-all` · `POST …/cards` |
-| Cards | `PATCH·DELETE /api/cards/{id}` · `POST …/move` · `POST …/archive` · `POST …/restore` · `PUT …/due-date` · `PUT·DELETE …/snooze` |
+| Cards | `PATCH·DELETE /api/cards/{id}` · `POST …/move` · `POST …/archive` · `POST …/restore` · `PUT …/due-date` · `PUT·DELETE …/snooze` · `PUT …/snooze-until-resolved` |
 | Card labels | `PUT·DELETE /api/cards/{id}/labels/{labelId}` |
 | Card dependencies | `PUT·DELETE /api/cards/{id}/dependencies/{dependsOnId}` |
 | Checklist | `POST /api/cards/{id}/checklist` · `PATCH·DELETE …/checklist/{itemId}` |
@@ -122,7 +122,7 @@ All tools are thin wrappers over `service.py` — one tool per query/mutation:
 - **Cards**: `add_card` (title, description, top/bottom) · `update_card` ·
   `set_card_due_date` ("YYYY-MM-DD", omit to clear) · `move_card` ·
   `archive_card` · `restore_card` · `delete_card` · `snooze_card` (until
-  "YYYY-MM-DD") · `unsnooze_card`
+  "YYYY-MM-DD") · `snooze_card_until_resolved` · `unsnooze_card`
 - **Card dependencies**: `add_card_dependency` · `remove_card_dependency`
 - **Card labels / checklist**: `add_card_label` · `remove_card_label` ·
   `add_checklist_item` · `update_checklist_item` · `delete_checklist_item`
@@ -171,11 +171,26 @@ Rules in `service.py`: the date must be after today (422), archived cards can't
 be snoozed, archiving clears the snooze, snoozing again changes the date,
 `unsnooze_card` wakes it now, moving keeps it snoozed, a snoozed prerequisite is
 still unresolved. `snoozedUntil` is kept after waking up; `snoozed` is computed
-and ignored on import. Drag & drop is safe with hidden cards because `move_card`
+and ignored on import.
+
+**Snooze until resolved** (`cards.snoozed_until_resolved`, `snoozedUntilResolved`):
+hidden in place until all its prerequisites are resolved. Refused (422) when
+none is unresolved; replaces a date snooze and vice versa. No date check can
+see resolution, but it only changes through mutations, so `_finalize` runs
+`_wake_resolved_cards` on every mutation: the one resolving the last
+prerequisite (move, archive, delete, unlink, column reorder/delete, import)
+clears the flag and sets `snoozed_until` to today. The wake-up is final even
+if a prerequisite becomes unresolved again later.
+**Just woke up** (`justWokeUp`, computed): not snoozed and `snoozedUntil ==
+today` — the whole wake day for a date snooze, the rest of the day for a
+dependency wake. "Wake now" clears `snoozedUntil`, so manual wakes get no
+badge. Drag & drop is safe with hidden cards because `move_card`
 uses an anchor card (`beforeCardId`), never an index.
 UI: Snooze button next to Archive in the card window (quick picks built by
-`frontend/src/dates.ts`), a "N snoozed" link under each column header, and a
-**Snoozed** tab (soonest wake-up first).
+`frontend/src/dates.ts`, plus "Until its prerequisites are done" when one is
+unresolved), a "N snoozed" link under each column header, a **Snoozed** tab
+(soonest wake-up first, prerequisite waits last), and a green "Just woke up"
+badge on the card tile.
 
 ### Frontend contract
 
@@ -220,6 +235,12 @@ that unit tests can't see. Outside `testpaths`, so plain `pytest` skips them;
 `pytest-playwright` lives in the `e2e` dependency group. Uses Playwright's
 Chromium if installed (`uv run --group e2e playwright install chromium`), else
 a system `chromium`. CI runs them in the separate `e2e` job.
+
+**README screenshots** — the snooze shots (dashboard, snooze popup, Snoozed
+tab) are generated: after `npm run build`, `cd backend && uv run --group e2e
+python ../doc/make_screenshots.py` overwrites them in `doc/screenshots/`
+(same in-process server as the e2e tests; dates are relative to today). The
+other screenshots are still taken by hand.
 
 ## How to add an Alembic migration
 
@@ -267,9 +288,6 @@ board version/ETag, MCP at `/mcp` (Phase 2) · MCP write tools · due dates
 card dependencies (`card_dependencies`, soft rule) ·
 "Sync failed" banner shows the backend's reason · optional hard dependency
 rule (`KANBAN_STRICT_DEPENDENCIES`) · card snooze (`cards.snoozed_until`,
-hidden in place, Snoozed tab) · browser sanity
+hidden in place, Snoozed tab) · snooze v2 (snooze until prerequisites are
+resolved, "just woke up" badge) · browser sanity
 checks (Playwright, `tests_e2e/`, CI job `e2e`).
-
-Next (snooze v2): "snooze until its prerequisites are resolved" (wake on
-dependencies instead of a date) · a "just woke up" badge on a card for a day
-after its snooze ends (`snoozedUntil` is kept for this).

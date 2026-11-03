@@ -64,14 +64,27 @@ def _validated_date(value: str | None, what: str = "due date") -> str | None:
 
 
 def _is_snoozed(card: models.Card, today_iso: str) -> bool:
-    """Snoozed = hidden from the board until a date strictly after today.
+    """Snoozed = hidden from the board until a date strictly after today, or
+    until all its prerequisites are resolved.
 
     ISO dates compare correctly as strings. Archived cards are never snoozed.
     """
+    if card.archived:
+        return False
+    if card.snoozed_until_resolved:
+        return True
+    return card.snoozed_until is not None and card.snoozed_until > today_iso
+
+
+def _just_woke_up(card: models.Card, today_iso: str) -> bool:
+    """The card's snooze ended today (date reached, or prerequisites resolved).
+
+    "Wake now" clears snoozed_until, so a manual wake-up shows no badge.
+    """
     return (
         not card.archived
-        and card.snoozed_until is not None
-        and card.snoozed_until > today_iso
+        and not card.snoozed_until_resolved
+        and card.snoozed_until == today_iso
     )
 
 
@@ -110,7 +123,9 @@ def set_subtitle(session: Session, subtitle: str) -> None:
 
 
 def _finalize(session: Session) -> None:
-    """Common tail of every mutation: mark initialized, bump version, commit."""
+    """Common tail of every mutation: wake cards whose prerequisites got
+    resolved, mark initialized, bump version, commit."""
+    _wake_resolved_cards(session)
     session.merge(models.Meta(key=INITIALIZED_KEY, value="1"))
     session.merge(models.Meta(key=VERSION_KEY, value=str(get_version(session) + 1)))
     session.commit()
@@ -165,7 +180,9 @@ def get_board(session: Session) -> BoardData:
                 archivedAt=card.archived_at,
                 dueDate=card.due_date,
                 snoozedUntil=card.snoozed_until,
+                snoozedUntilResolved=card.snoozed_until_resolved,
                 snoozed=_is_snoozed(card, today_iso),
+                justWokeUp=_just_woke_up(card, today_iso),
                 dependsOn=depends_on.get(card.id, []),
                 blocks=blocks.get(card.id, []),
             )
@@ -317,6 +334,7 @@ def replace_board(session: Session, board: BoardData) -> None:
                 due_date=card.dueDate,
                 # Archived cards are never snoozed (same rule as archive_card)
                 snoozed_until=None if card.archived else card.snoozedUntil,
+                snoozed_until_resolved=card.snoozedUntilResolved and not card.archived,
                 column_id=column_id,
                 position=position,
             )
@@ -424,7 +442,9 @@ def _place_cards(cards: list[models.Card], column_id: str) -> None:
 def _archive_card_row(session: Session, card: models.Card) -> None:
     """Move a card to the archive, remembering where it came from."""
     card.archived = True
-    card.snoozed_until = None  # an archived card has nothing to wake up for
+    # An archived card has nothing to wake up for
+    card.snoozed_until = None
+    card.snoozed_until_resolved = False
     card.archived_from = card.column_id
     card.archived_at = now_ms()
     card.column_id = None
@@ -582,15 +602,39 @@ def snooze_card(session: Session, card_id: str, until: str) -> None:
             f"snooze date {until} must be after today ({today().isoformat()})"
         )
     card.snoozed_until = until
+    card.snoozed_until_resolved = False  # a date snooze replaces a dependency one
+    _finalize(session)
+
+
+def snooze_card_until_resolved(session: Session, card_id: str) -> None:
+    """Hide a card until all its prerequisites are resolved.
+
+    The card keeps its column and position. It wakes up by itself when the
+    mutation resolving its last prerequisite runs (see _wake_resolved_cards);
+    the wake-up is final even if a prerequisite later becomes unresolved again.
+    Replaces a date snooze.
+    """
+    card = _card(session, card_id)
+    if card.archived:
+        raise BoardValidationError(
+            f"card {card_id!r} is archived and cannot be snoozed"
+        )
+    if not _unresolved_prerequisites(session, card_id, _done_column_id(session)):
+        raise BoardValidationError(
+            f"card {card_id!r} has no unresolved prerequisites to wait for"
+        )
+    card.snoozed_until = None
+    card.snoozed_until_resolved = True
     _finalize(session)
 
 
 def unsnooze_card(session: Session, card_id: str) -> None:
     """Wake a snoozed card now (no-op if it is not snoozed)."""
     card = _card(session, card_id)
-    if card.snoozed_until is None:
+    if card.snoozed_until is None and not card.snoozed_until_resolved:
         return
     card.snoozed_until = None
+    card.snoozed_until_resolved = False
     _finalize(session)
 
 
@@ -798,6 +842,26 @@ def _unresolved_prerequisites(
     return [p for p in prereqs if not _is_resolved(p, done_column_id)]
 
 
+def _wake_resolved_cards(session: Session) -> None:
+    """Wake cards snoozed until resolved once all their prerequisites are.
+
+    Resolution only changes through mutations (move, archive, delete, link
+    removal, column reorder/delete, import), so running this in _finalize wakes
+    each card in the very mutation that resolves its last prerequisite. The
+    wake day goes to snoozed_until, which drives the "just woke up" badge.
+    """
+    sleepers = session.scalars(
+        select(models.Card).where(models.Card.snoozed_until_resolved)
+    ).all()
+    if not sleepers:
+        return
+    done_column_id = _done_column_id(session)
+    for card in sleepers:
+        if not _unresolved_prerequisites(session, card.id, done_column_id):
+            card.snoozed_until_resolved = False
+            card.snoozed_until = today().isoformat()
+
+
 def _check_can_enter(session: Session, card: models.Card, to_column_id: str) -> None:
     """Hard dependency rule: a blocked card may not move into the last column."""
     done_column_id = _done_column_id(session)
@@ -930,7 +994,9 @@ def card_summary(session: Session, card: models.Card) -> dict:
         "due_date": card.due_date,
         "archived": card.archived,
         "snoozed_until": card.snoozed_until,
+        "snoozed_until_resolved": card.snoozed_until_resolved,
         "snoozed": _is_snoozed(card, today().isoformat()),
+        "just_woke_up": _just_woke_up(card, today().isoformat()),
         "depends_on": depends_on,
         "blocked": any(not dep["resolved"] for dep in depends_on),
     }
