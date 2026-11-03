@@ -142,6 +142,8 @@ export const api = {
     patchTextDebounced(`/api/cards/${id(cardId)}`, patch),
   setCardDueDate: (cardId: string, dueDate: string | null) =>
     mutate(`/api/cards/${id(cardId)}/due-date`, 'PUT', { dueDate }),
+  snoozeCard: (cardId: string, until: string) => mutate(`/api/cards/${id(cardId)}/snooze`, 'PUT', { until }),
+  unsnoozeCard: (cardId: string) => mutate(`/api/cards/${id(cardId)}/snooze`, 'DELETE'),
 
   // card labels
   addCardLabel: (cardId: string, labelId: string) =>

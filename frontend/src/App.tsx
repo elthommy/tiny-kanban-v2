@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ArchiveActions, BoardActions, CardActions, LabelEditorActions } from './actions'
+import type { ArchiveActions, BoardActions, CardActions, LabelEditorActions, SnoozedActions } from './actions'
 import { api, loadBoard } from './api'
 import { ARCHIVE_SORT, CONFIRM_DELETE, NEW_CARD_POSITION } from './config'
 import type { LabelColor } from './config'
@@ -7,6 +7,7 @@ import type { BoardData, Card, Column, Label } from './types'
 import ArchiveView from './components/ArchiveView'
 import Board from './components/Board'
 import CardModal from './components/CardModal'
+import SnoozedView from './components/SnoozedView'
 
 function confirmOk(msg: string): boolean {
   return !CONFIRM_DELETE || window.confirm(msg)
@@ -45,8 +46,10 @@ export default function App() {
 function KanbanApp({ initial }: { initial: BoardData }) {
   const [data, setData] = useState<BoardData>(initial)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [view, setView] = useState<'board' | 'archive'>('board')
+  const [view, setView] = useState<'board' | 'snoozed' | 'archive'>('board')
   const [openCardId, setOpenCardId] = useState<string | null>(null)
+  // Opens the card window with its snooze popup already shown ("Change date")
+  const [snoozeOpenAtStart, setSnoozeOpenAtStart] = useState(false)
   const [menuColId, setMenuColId] = useState<string | null>(null)
   const [dragging, setDragging] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<{ col: string | null; card: string | null }>({ col: null, card: null })
@@ -117,6 +120,11 @@ function KanbanApp({ initial }: { initial: BoardData }) {
     closeMenus: () => setMenuColId(null),
     openCard: (cardId) => {
       setOpenCardId(cardId)
+      setSnoozeOpenAtStart(false)
+      setMenuColId(null)
+    },
+    showSnoozed: () => {
+      setView('snoozed')
       setMenuColId(null)
     },
     cardDragStart: (e, cardId) => {
@@ -224,7 +232,16 @@ function KanbanApp({ initial }: { initial: BoardData }) {
     deleteCheckItem: (itemId) => openCard && apply(api.deleteCheckItem(openCard.id, itemId)),
     addDependency: (dependsOnId) => openCard && apply(api.addCardDependency(openCard.id, dependsOnId)),
     removeDependency: (dependsOnId) => openCard && apply(api.removeCardDependency(openCard.id, dependsOnId)),
-    openCard: (cardId) => setOpenCardId(cardId),
+    openCard: (cardId) => {
+      setOpenCardId(cardId)
+      setSnoozeOpenAtStart(false)
+    },
+    snooze: (until) => {
+      if (!openCardId) return
+      apply(api.snoozeCard(openCardId, until))
+      setOpenCardId(null)
+    },
+    unsnooze: () => openCardId && apply(api.unsnoozeCard(openCardId)),
     archiveCard: () => {
       if (!openCardId) return
       apply(api.archiveCard(openCardId))
@@ -280,6 +297,31 @@ function KanbanApp({ initial }: { initial: BoardData }) {
     return m
   }, [data.columns])
 
+  // Snoozed cards (computed by the backend), soonest wake-up first
+  const snoozed = useMemo(() => {
+    const list = Object.values(data.cards).filter((c) => c.snoozed)
+    list.sort((a, b) => (a.snoozedUntil ?? '').localeCompare(b.snoozedUntil ?? ''))
+    return list
+  }, [data.cards])
+
+  const columnOf = useMemo(() => {
+    const m: Record<string, string> = {}
+    data.columns.forEach((col) => col.cardIds.forEach((id) => (m[id] = col.title)))
+    return m
+  }, [data.columns])
+
+  const snoozedActions: SnoozedActions = {
+    openCard: (cardId) => {
+      setOpenCardId(cardId)
+      setSnoozeOpenAtStart(false)
+    },
+    changeDate: (cardId) => {
+      setOpenCardId(cardId)
+      setSnoozeOpenAtStart(true)
+    },
+    unsnooze: (cardId) => apply(api.unsnoozeCard(cardId)),
+  }
+
   const archiveActions: ArchiveActions = {
     setQuery: setArchiveQuery,
     restore: (cardId) => apply(api.restoreCard(cardId)),
@@ -316,6 +358,15 @@ function KanbanApp({ initial }: { initial: BoardData }) {
             Board
           </button>
           <button
+            className={`seg-btn${view === 'snoozed' ? ' active' : ''}`}
+            onClick={() => {
+              setView('snoozed')
+              setMenuColId(null)
+            }}
+          >
+            Snoozed · {snoozed.length}
+          </button>
+          <button
             className={`seg-btn${view === 'archive' ? ' active' : ''}`}
             onClick={() => {
               setView('archive')
@@ -334,7 +385,7 @@ function KanbanApp({ initial }: { initial: BoardData }) {
         </div>
       )}
 
-      {view === 'board' ? (
+      {view === 'board' && (
         <Board
           columns={data.columns}
           cards={data.cards}
@@ -347,7 +398,11 @@ function KanbanApp({ initial }: { initial: BoardData }) {
           colDropBefore={colDrop ? colDrop.before : undefined}
           actions={boardActions}
         />
-      ) : (
+      )}
+      {view === 'snoozed' && (
+        <SnoozedView snoozed={snoozed} columnOf={columnOf} labelMap={labelMap} actions={snoozedActions} />
+      )}
+      {view === 'archive' && (
         <ArchiveView
           archived={archived}
           filtered={filtered}
@@ -362,12 +417,14 @@ function KanbanApp({ initial }: { initial: BoardData }) {
 
       {openCard && (
         <CardModal
+          key={openCard.id}
           card={openCard}
           cards={data.cards}
           columns={data.columns}
           labels={data.labels}
           labelEditorOpen={labelEditorOpen}
           colorPickerLabel={colorPickerLabel}
+          snoozeOpenAtStart={snoozeOpenAtStart}
           actions={cardActions}
           labelActions={labelActions}
         />

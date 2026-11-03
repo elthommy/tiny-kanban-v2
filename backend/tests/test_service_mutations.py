@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 
 from tiny_kanban import service
@@ -765,3 +767,146 @@ def test_card_detail_lists_dependencies_and_blocks(seeded):
     assert summary["blocked"] is True
     assert summary["depends_on"][0]["id"] == "c4"
     assert summary["depends_on"][0]["resolved"] is False
+
+
+# --- snooze ------------------------------------------------------------------------
+
+
+def test_snooze_hides_card_but_keeps_its_place(seeded, fixed_today):
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    card = board(seeded).cards["c2"]
+    assert card.snoozed is True
+    assert card.snoozedUntil == "2026-11-10"
+    assert column_cards(seeded, "col1") == ["c1", "c2", "c3"]
+
+
+def test_snoozed_card_wakes_up_on_its_date(seeded, fixed_today, monkeypatch):
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    version = service.get_version(seeded)
+    monkeypatch.setattr(service, "today", lambda: date(2026, 11, 9))
+    assert board(seeded).cards["c2"].snoozed is True
+    monkeypatch.setattr(service, "today", lambda: date(2026, 11, 10))
+    card = board(seeded).cards["c2"]
+    assert card.snoozed is False
+    assert card.snoozedUntil == "2026-11-10"  # kept: the date it woke up
+    assert service.get_version(seeded) == version  # waking up is not a mutation
+
+
+def test_snooze_again_changes_the_wake_up_date(seeded, fixed_today):
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    service.snooze_card(seeded, "c2", "2026-12-01")
+    assert board(seeded).cards["c2"].snoozedUntil == "2026-12-01"
+
+
+@pytest.mark.parametrize("until", ["2026-11-03", "2026-11-02", "2025-01-01"])
+def test_snooze_until_today_or_past_rejected(seeded, fixed_today, until):
+    with pytest.raises(BoardValidationError, match="must be after today"):
+        service.snooze_card(seeded, "c2", until)
+
+
+def test_snooze_invalid_date_rejected(seeded, fixed_today):
+    with pytest.raises(BoardValidationError, match="invalid snooze date"):
+        service.snooze_card(seeded, "c2", "next monday")
+
+
+def test_snooze_unknown_card_404(seeded, fixed_today):
+    with pytest.raises(NotFoundError):
+        service.snooze_card(seeded, "nope", "2026-11-10")
+
+
+def test_snooze_archived_card_rejected(seeded, fixed_today):
+    service.archive_card(seeded, "c2")
+    with pytest.raises(BoardValidationError, match="archived"):
+        service.snooze_card(seeded, "c2", "2026-11-10")
+
+
+def test_unsnooze_wakes_card_now(seeded, fixed_today):
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    service.unsnooze_card(seeded, "c2")
+    card = board(seeded).cards["c2"]
+    assert card.snoozed is False and card.snoozedUntil is None
+
+
+def test_unsnooze_card_not_snoozed_is_noop(seeded, fixed_today):
+    version = service.get_version(seeded)
+    service.unsnooze_card(seeded, "c2")
+    assert service.get_version(seeded) == version
+
+
+def test_unsnooze_unknown_card_404(seeded):
+    with pytest.raises(NotFoundError):
+        service.unsnooze_card(seeded, "nope")
+
+
+def test_archive_clears_snooze_and_restore_returns_awake(seeded, fixed_today):
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    service.archive_card(seeded, "c2")
+    assert board(seeded).cards["c2"].snoozedUntil is None
+    service.restore_card(seeded, "c2")
+    assert board(seeded).cards["c2"].snoozed is False
+
+
+def test_archive_all_and_delete_column_clear_snooze(seeded, fixed_today):
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    service.snooze_card(seeded, "c4", "2026-11-10")
+    service.archive_all(seeded, "col1")
+    service.delete_column(seeded, "col2")
+    cards = board(seeded).cards
+    assert cards["c2"].snoozedUntil is None and cards["c4"].snoozedUntil is None
+
+
+def test_moved_snoozed_card_stays_snoozed(seeded, fixed_today):
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    service.move_card(seeded, "c2", "col2")
+    assert board(seeded).cards["c2"].snoozed is True
+    assert column_cards(seeded, "col2") == ["c4", "c5", "c2"]
+
+
+def test_moving_around_a_hidden_card_keeps_its_place(seeded, fixed_today):
+    # The UI only sees c1 and c3; dropping c3 before c1 must not disturb c2
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    service.move_card(seeded, "c3", "col1", "c1")
+    assert column_cards(seeded, "col1") == ["c3", "c1", "c2"]
+
+
+def test_snoozed_prerequisite_is_not_resolved(seeded, fixed_today):
+    service.add_card_dependency(seeded, "c1", "c4")
+    service.snooze_card(seeded, "c4", "2026-11-10")
+    assert deps(seeded, "c1") == [("c4", False)]
+
+
+def test_replace_board_round_trips_snoozed_until(session, fixed_today):
+    payload = simple_board()
+    payload["cards"]["c1"]["snoozedUntil"] = "2026-11-10"
+    payload["cards"]["c2"]["snoozed"] = True  # computed field: ignored on import
+    service.replace_board(session, BoardData.model_validate(payload))
+    cards = board(session).cards
+    assert cards["c1"].snoozedUntil == "2026-11-10" and cards["c1"].snoozed is True
+    assert cards["c2"].snoozedUntil is None and cards["c2"].snoozed is False
+
+
+def test_replace_board_invalid_snooze_date_rejected(session):
+    payload = simple_board()
+    payload["cards"]["c1"]["snoozedUntil"] = "later"
+    with pytest.raises(BoardValidationError, match="invalid snooze date"):
+        service.replace_board(session, BoardData.model_validate(payload))
+
+
+def test_replace_board_drops_snooze_of_archived_cards(session, fixed_today):
+    payload = simple_board()
+    payload["columns"][0]["cardIds"] = ["c1"]
+    payload["cards"]["c2"].update(archived=True, snoozedUntil="2026-11-10")
+    service.replace_board(session, BoardData.model_validate(payload))
+    assert board(session).cards["c2"].snoozedUntil is None
+
+
+def test_search_cards_snoozed_filter(seeded, fixed_today):
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    assert [h["id"] for h in service.search_cards(seeded, snoozed=True)] == ["c2"]
+    assert "c2" not in [h["id"] for h in service.search_cards(seeded, snoozed=False)]
+
+
+def test_card_summary_snooze_fields(seeded, fixed_today):
+    service.snooze_card(seeded, "c2", "2026-11-10")
+    detail = service.get_card_detail(seeded, "c2")
+    assert detail["snoozed_until"] == "2026-11-10" and detail["snoozed"] is True

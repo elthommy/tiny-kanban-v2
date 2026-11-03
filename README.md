@@ -22,9 +22,9 @@ https://github.com/user-attachments/assets/2d0bec4f-3922-4ad5-82a7-e473bcc66db5
 <sub>Music: "Happy Beats / Business Moves Vol. 1" by Sascha Ende, [ende.app](https://ende.app) — licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).</sub>
 
 ## Dashboard
-![Board with labels, checklist progress and due-date badges (overdue, due soon, upcoming)](./doc/screenshots/tiny-kanban-v2_dashboard.png)
+![Board with labels, checklist progress, due-date badges (overdue, due soon, upcoming) and snoozed-card counts](./doc/screenshots/tiny-kanban-v2_dashboard.png)
 ## Card
-![Card details: labels, due date, description and checklist](./doc/screenshots/tiny-kanban-v2_card.png)
+![Card details: labels, due date, description, checklist, dependencies, snooze and archive](./doc/screenshots/tiny-kanban-v2_card.png)
 
 <details>
 <summary>More screenshots</summary>
@@ -34,6 +34,12 @@ https://github.com/user-attachments/assets/2d0bec4f-3922-4ad5-82a7-e473bcc66db5
 
 ### Column menu
 ![Column menu: add a card, sort by label, archive all cards, delete column](./doc/screenshots/tiny-kanban-v2_column-menu.png)
+
+### Snooze
+![Snooze popup: tomorrow, next Monday, in 1 week, in 1 month or a custom date, with a warning for dates after the due date](./doc/screenshots/tiny-kanban-v2_snooze.png)
+
+### Snoozed cards
+![Snoozed cards by wake-up date, with change date and wake now](./doc/screenshots/tiny-kanban-v2_snoozed.png)
 
 ### Archive
 ![Archived cards with search, restore to original column, or delete](./doc/screenshots/tiny-kanban-v2_archive.png)
@@ -57,9 +63,13 @@ Ports and the database path are configurable — copy `.env.example` to `.env`.
 - Cards: add (Enter in the column footer), drag & drop between/within columns
   with a drop indicator, open in a modal
 - Card modal: edit title & description, toggle labels, checklist with progress
-  bar, archive or delete
+  bar, snooze, archive or delete
+- Snooze: hide a card until a date (tomorrow, next Monday, in 1 week/month, or
+  any date); it stays in its column and reappears on its own. Each column shows
+  how many cards are snoozed
 - Labels: shared across the board — create, rename, recolor (8-color palette),
   delete from the "Edit labels" panel in the card modal
+- Snoozed view: cards by wake-up date — wake now or change the date
 - Archive view: search, restore to the original column, permanently delete
 
 Behavior toggles (confirmation dialogs, new-card position, archive sort order)

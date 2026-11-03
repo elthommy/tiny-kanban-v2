@@ -38,6 +38,9 @@ class Card(Base):
     )  # ms epoch, matches JS Date.now()
     # ISO date "YYYY-MM-DD" (no time/timezone), NULL when the card has no due date
     due_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    # ISO date "YYYY-MM-DD": the card is hidden from the board while this is
+    # after today (server local date). NULL when the card was never snoozed.
+    snoozed_until: Mapped[str | None] = mapped_column(String, nullable=True)
     # NULL for archived/orphan cards
     column_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("columns.id", ondelete="CASCADE"), nullable=True

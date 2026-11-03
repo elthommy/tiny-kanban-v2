@@ -11,6 +11,7 @@ export interface BoardActions {
   toggleColumnMenu: (colId: string) => void
   closeMenus: () => void
   openCard: (cardId: string) => void
+  showSnoozed: () => void
   cardDragStart: (e: DragEvent, cardId: string) => void
   cardDragEnd: () => void
   cardDragOver: (e: DragEvent, colId: string, cardId: string) => void
@@ -34,6 +35,8 @@ export interface CardActions {
   addDependency: (dependsOnId: string) => void
   removeDependency: (dependsOnId: string) => void
   openCard: (cardId: string) => void
+  snooze: (until: string) => void
+  unsnooze: () => void
   archiveCard: () => void
   deleteCard: () => void
 }
@@ -45,6 +48,12 @@ export interface LabelEditorActions {
   deleteLabel: (labelId: string) => void
   togglePicker: (labelId: string) => void
   setColor: (labelId: string, color: LabelColor) => void
+}
+
+export interface SnoozedActions {
+  openCard: (cardId: string) => void
+  changeDate: (cardId: string) => void // opens the card with its snooze popup
+  unsnooze: (cardId: string) => void
 }
 
 export interface ArchiveActions {
