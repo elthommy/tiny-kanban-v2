@@ -83,8 +83,15 @@ pushd backend
 popd
 pushd frontend
   npm test        # minimal API-client tests
+  npm run build   # needed by the browser tests below
+popd
+pushd backend
+  uv run --group e2e pytest tests_e2e   # browser sanity checks (Chromium)
 popd
 ```
+
+The browser tests use Playwright's Chromium if installed
+(`uv run --group e2e playwright install chromium`), else a system `chromium`.
 
 Architecture, data model, and contribution guide (for humans and LLM agents):
 see [AGENTS.md](AGENTS.md).

@@ -210,6 +210,17 @@ plus the Phase 1 files.
 (`dates.ts`, local-calendar math). jsdom no longer bundles
 `localStorage`; tests stub it (see `api.test.ts`).
 
+**Browser sanity checks (e2e)** — `cd frontend && npm run build`, then
+`cd backend && uv run --group e2e pytest tests_e2e` (~5 s). Playwright drives
+Chromium against the real app: `tests_e2e/conftest.py` serves `frontend/dist`
++ the API in-process on a free port with a temp DB and reseeds the demo board
+per test. A handful of flows only (drag & drop, snooze/wake, archive/restore,
+dependency) — rules stay tested in `tests/`; add an e2e test only for UI wiring
+that unit tests can't see. Outside `testpaths`, so plain `pytest` skips them;
+`pytest-playwright` lives in the `e2e` dependency group. Uses Playwright's
+Chromium if installed (`uv run --group e2e playwright install chromium`), else
+a system `chromium`. CI runs them in the separate `e2e` job.
+
 ## How to add an Alembic migration
 
 1. Edit `models.py` (add a column/table).
@@ -256,7 +267,8 @@ board version/ETag, MCP at `/mcp` (Phase 2) · MCP write tools · due dates
 card dependencies (`card_dependencies`, soft rule) ·
 "Sync failed" banner shows the backend's reason · optional hard dependency
 rule (`KANBAN_STRICT_DEPENDENCIES`) · card snooze (`cards.snoozed_until`,
-hidden in place, Snoozed tab).
+hidden in place, Snoozed tab) · browser sanity
+checks (Playwright, `tests_e2e/`, CI job `e2e`).
 
 Next (snooze v2): "snooze until its prerequisites are resolved" (wake on
 dependencies instead of a date) · a "just woke up" badge on a card for a day
