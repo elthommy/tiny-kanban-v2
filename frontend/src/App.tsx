@@ -3,9 +3,12 @@ import type { ArchiveActions, BoardActions, CardActions, LabelEditorActions, Sno
 import { api, loadBoard } from './api'
 import { ARCHIVE_SORT, CONFIRM_DELETE, NEW_CARD_POSITION } from './config'
 import type { LabelColor } from './config'
+import { filterFromHash, filterToHash, isFilterActive, NO_FILTER, pruneFilter, toggleFilterLabel } from './filter'
+import type { LabelFilter } from './filter'
 import type { BoardData, Card, Column, Label } from './types'
 import ArchiveView from './components/ArchiveView'
 import Board from './components/Board'
+import FilterBar from './components/FilterBar'
 import CardModal from './components/CardModal'
 import SnoozedView from './components/SnoozedView'
 
@@ -59,15 +62,24 @@ function KanbanApp({ initial }: { initial: BoardData }) {
   const [labelEditorOpen, setLabelEditorOpen] = useState(false)
   const [colorPickerLabel, setColorPickerLabel] = useState<string | null>(null)
   const [archiveQuery, setArchiveQuery] = useState('')
+  // Label filter: view state only, kept in the URL hash so it survives reloads
+  const [rawLabelFilter, setRawLabelFilter] = useState<LabelFilter>(() => filterFromHash(window.location.hash))
+  // Cards added while a filter is on stay visible until the filter changes
+  const [revealedCardIds, setRevealedCardIds] = useState<string[]>([])
+  const setLabelFilter = (fn: (f: LabelFilter) => LabelFilter) => {
+    setRawLabelFilter(fn)
+    setRevealedCardIds([])
+  }
   const dragCardId = useRef<string | null>(null)
   const dragColId = useRef<string | null>(null)
 
   /** Run a structural mutation and adopt the server's board. */
-  const apply = (mutation: Promise<BoardData>) => {
+  const apply = (mutation: Promise<BoardData>, onBoard?: (b: BoardData) => void) => {
     mutation
       .then((b) => {
         setData(b)
         setActionError(null)
+        onBoard?.(b)
       })
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
   }
@@ -77,6 +89,15 @@ function KanbanApp({ initial }: { initial: BoardData }) {
     data.labels.forEach((l) => (m[l.id] = l))
     return m
   }, [data.labels])
+
+  const labelFilter = useMemo(
+    () => pruneFilter(rawLabelFilter, data.labels.map((l) => l.id)),
+    [rawLabelFilter, data.labels],
+  )
+  useEffect(() => {
+    const { pathname, search } = window.location
+    window.history.replaceState(null, '', pathname + search + filterToHash(labelFilter))
+  }, [labelFilter])
 
   // Optimistic local updates backing the per-keystroke text inputs
   const patchColumns = (fn: (columns: Column[]) => Column[]) => setData((d) => ({ ...d, columns: fn(d.columns) }))
@@ -98,7 +119,11 @@ function KanbanApp({ initial }: { initial: BoardData }) {
       api.renameColumn(colId, title)
     },
     addCard: (colId, title) => {
-      apply(api.addCard(colId, title, NEW_CARD_POSITION))
+      const known = new Set(Object.keys(data.cards))
+      apply(api.addCard(colId, title, NEW_CARD_POSITION), (b) => {
+        const added = Object.keys(b.cards).filter((id) => !known.has(id))
+        if (isFilterActive(labelFilter)) setRevealedCardIds((ids) => [...ids, ...added])
+      })
       setMenuColId(null)
     },
     addColumn: (title) => apply(api.addColumn(title)),
@@ -127,6 +152,7 @@ function KanbanApp({ initial }: { initial: BoardData }) {
       setView('snoozed')
       setMenuColId(null)
     },
+    toggleLabelFilter: (labelId) => setLabelFilter((f) => toggleFilterLabel(pruneFilter(f, Object.keys(labelMap)), labelId)),
     cardDragStart: (e, cardId) => {
       dragCardId.current = cardId
       e.dataTransfer.effectAllowed = 'move'
@@ -391,6 +417,15 @@ function KanbanApp({ initial }: { initial: BoardData }) {
         </div>
       )}
 
+      {view === 'board' && data.labels.length > 0 && (
+        <FilterBar
+          labels={data.labels}
+          filter={labelFilter}
+          onToggleLabel={boardActions.toggleLabelFilter}
+          onToggleUnlabelled={() => setLabelFilter((f) => ({ ...f, unlabelled: !f.unlabelled }))}
+          onClear={() => setLabelFilter(() => NO_FILTER)}
+        />
+      )}
       {view === 'board' && (
         <Board
           columns={data.columns}
@@ -402,6 +437,8 @@ function KanbanApp({ initial }: { initial: BoardData }) {
           dragOverCard={dragOver.card}
           draggingCol={draggingCol}
           colDropBefore={colDrop ? colDrop.before : undefined}
+          labelFilter={labelFilter}
+          revealedCardIds={revealedCardIds}
           actions={boardActions}
         />
       )}

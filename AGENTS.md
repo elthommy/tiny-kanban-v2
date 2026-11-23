@@ -192,6 +192,19 @@ unresolved), a "N snoozed" link under each column header, a **Snoozed** tab
 (soonest wake-up first, prerequisite waits last), and a green "Just woke up"
 badge on the card tile.
 
+### Label filter
+
+A row of label chips under the header (Board view only) shows only the cards
+having **any** selected label; "No label" adds unlabelled cards. Clicking a
+label on a card tile toggles it too. Column counts become `matching/total`.
+A card added while filtered stays visible (even unlabelled) until the filter
+changes — no labels are added to it.
+This is **view state, not a board rule**: no endpoint, no version bump, so it
+lives in `frontend/src/filter.ts` (pure functions, unit-tested) and is kept in
+the URL hash (`#label=<id>&unlabelled=1`). Drag & drop stays safe while
+filtered for the same anchor-card reason as snoozed cards. The MCP equivalent
+is `list_cards(label=…)`.
+
 ### Frontend contract
 
 `frontend/src/api.ts` is the only file talking to the backend:
@@ -221,8 +234,8 @@ plus the Phase 1 files.
 **Every new board rule needs tests at the service and HTTP layers.**
 
 **Frontend (minimal by design)** — `cd frontend && npm test`: `api.ts`
-(debounce, flush ordering, migration) and the snooze quick-pick dates
-(`dates.ts`, local-calendar math). jsdom no longer bundles
+(debounce, flush ordering, migration), the snooze quick-pick dates
+(`dates.ts`, local-calendar math) and the label filter (`filter.ts`). jsdom no longer bundles
 `localStorage`; tests stub it (see `api.test.ts`).
 
 **Browser sanity checks (e2e)** — `cd frontend && npm run build`, then
@@ -230,7 +243,7 @@ plus the Phase 1 files.
 Chromium against the real app: `tests_e2e/conftest.py` serves `frontend/dist`
 + the API in-process on a free port with a temp DB and reseeds the demo board
 per test. A handful of flows only (drag & drop, snooze/wake, archive/restore,
-dependency) — rules stay tested in `tests/`; add an e2e test only for UI wiring
+dependency, label filter) — rules stay tested in `tests/`; add an e2e test only for UI wiring
 that unit tests can't see. Outside `testpaths`, so plain `pytest` skips them;
 `pytest-playwright` lives in the `e2e` dependency group. Uses Playwright's
 Chromium if installed (`uv run --group e2e playwright install chromium`), else
@@ -290,4 +303,5 @@ card dependencies (`card_dependencies`, soft rule) ·
 rule (`KANBAN_STRICT_DEPENDENCIES`) · card snooze (`cards.snoozed_until`,
 hidden in place, Snoozed tab) · snooze v2 (snooze until prerequisites are
 resolved, "just woke up" badge) · browser sanity
-checks (Playwright, `tests_e2e/`, CI job `e2e`).
+checks (Playwright, `tests_e2e/`, CI job `e2e`) · board label filter
+(`filter.ts`, URL hash).

@@ -128,3 +128,36 @@ def test_snooze_until_prerequisites_done_then_just_woke_up(board_page: Page, app
     expect(card(page, "Conduct 5 user interviews").locator(".woke-badge")).to_have_text(
         "⏰Just woke up"
     )
+
+
+def test_filter_board_by_label(board_page: Page):
+    page = board_page
+    filter_bar = page.get_by_role("toolbar", name="Filter by label")
+    filter_bar.get_by_role("button", name="Feature").click()
+    expect(column_titles(page, TODO)).to_have_text(["Redesign onboarding flow"])
+    expect(column_titles(page, BLOCKED)).to_have_count(0)
+    expect(page.locator(".column").nth(TODO).locator(".col-count")).to_have_text("1/3")
+
+    # Clicking a label on a card adds it to the filter instead of opening the card
+    card(page, "Ship v2.3 release").get_by_role("button", name="Feature").click()
+    expect(column_titles(page, TODO)).to_have_count(3)  # Feature toggled off
+    card(page, "API rate limiting").get_by_role("button", name="Backend").click()
+    expect(page.locator(".modal")).to_have_count(0)
+    expect(column_titles(page, BLOCKED)).to_have_text(["Payment webhook timing out"])
+
+    page.reload()  # the filter is kept in the URL
+    expect(column_titles(page, BLOCKED)).to_have_text(["Payment webhook timing out"])
+
+    # A card added while filtered stays visible until the filter changes
+    page.locator(".column").nth(BLOCKED).get_by_placeholder("Add a card").fill(
+        "New task"
+    )
+    page.keyboard.press("Enter")
+    expect(column_titles(page, BLOCKED)).to_have_text(
+        ["Payment webhook timing out", "New task"]
+    )
+    filter_bar.get_by_role("button", name="No label").click()
+    filter_bar.get_by_role("button", name="No label").click()
+    expect(column_titles(page, BLOCKED)).to_have_text(["Payment webhook timing out"])
+    filter_bar.get_by_role("button", name="Clear").click()
+    expect(column_titles(page, BLOCKED)).to_have_count(3)

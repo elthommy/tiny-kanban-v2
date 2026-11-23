@@ -12,6 +12,7 @@ export interface BoardActions {
   closeMenus: () => void
   openCard: (cardId: string) => void
   showSnoozed: () => void
+  toggleLabelFilter: (labelId: string) => void
   cardDragStart: (e: DragEvent, cardId: string) => void
   cardDragEnd: () => void
   cardDragOver: (e: DragEvent, colId: string, cardId: string) => void
