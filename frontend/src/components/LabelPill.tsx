@@ -1,11 +1,45 @@
 import type { Label } from '../types'
 
-export function LabelPill({ label }: { label: Label }) {
-  return (
-    <span className="label-pill" style={{ background: label.bg, color: label.fg }}>
+/** A label pill; clickable (a button) when `onClick` is given, e.g. to filter. */
+export function LabelPill({
+  label,
+  onClick,
+  selected,
+  title,
+}: {
+  label: Label
+  onClick?: () => void
+  selected?: boolean
+  title?: string
+}) {
+  const content = (
+    <>
       <span className="pill-dot" style={{ background: label.dot }} />
       {label.name}
-    </span>
+    </>
+  )
+  const style = { background: label.bg, color: label.fg }
+  if (!onClick) {
+    return (
+      <span className="label-pill" style={style}>
+        {content}
+      </span>
+    )
+  }
+  return (
+    <button
+      type="button"
+      className={`label-pill clickable${selected ? ' selected' : ''}`}
+      style={style}
+      aria-pressed={selected}
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation() // on a card tile: filter, don't open the card
+        onClick()
+      }}
+    >
+      {content}
+    </button>
   )
 }
 

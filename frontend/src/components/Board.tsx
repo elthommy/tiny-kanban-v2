@@ -1,6 +1,8 @@
 import { Fragment } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { BoardActions } from '../actions'
+import type { LabelFilter } from '../filter'
+import { isFilterActive, matchesLabelFilter } from '../filter'
 import type { Card, Column, Label } from '../types'
 import { LabelPill, cardLabels, checklistStats } from './LabelPill'
 
@@ -14,6 +16,8 @@ interface BoardProps {
   dragOverCard: string | null
   draggingCol: string | null
   colDropBefore: string | null | undefined // undefined = no drop target yet
+  labelFilter: LabelFilter
+  revealedCardIds: string[] // shown even if they don't match the filter
   actions: BoardActions
 }
 
@@ -44,12 +48,14 @@ function CardTile({
   colId,
   labelMap,
   showIndicator,
+  filteredLabelIds,
   actions,
 }: {
   card: Card
   colId: string
   labelMap: Record<string, Label>
   showIndicator: boolean
+  filteredLabelIds: string[]
   actions: BoardActions
 }) {
   const labels = cardLabels(card.labels, labelMap)
@@ -71,7 +77,13 @@ function CardTile({
         {labels.length > 0 && (
           <div className="card-labels">
             {labels.map((l) => (
-              <LabelPill key={l.id} label={l} />
+              <LabelPill
+                key={l.id}
+                label={l}
+                selected={filteredLabelIds.includes(l.id)}
+                title={filteredLabelIds.includes(l.id) ? `Stop filtering by ${l.name}` : `Filter by ${l.name}`}
+                onClick={() => actions.toggleLabelFilter(l.id)}
+              />
             ))}
           </div>
         )}
@@ -113,8 +125,10 @@ function CardTile({
 function BoardColumn({
   column,
   cards,
+  totalCount,
   snoozedCount,
   labelMap,
+  labelFilter,
   menuOpen,
   dragging,
   dragOverCol,
@@ -124,8 +138,10 @@ function BoardColumn({
 }: {
   column: Column
   cards: Card[]
+  totalCount: number // awake cards in the column, filter or not
   snoozedCount: number
   labelMap: Record<string, Label>
+  labelFilter: LabelFilter
   menuOpen: boolean
   dragging: string | null
   dragOverCol: string | null
@@ -151,7 +167,13 @@ function BoardColumn({
           value={column.title}
           onChange={(e) => actions.renameColumn(column.id, e.target.value)}
         />
-        <span className="col-count">{cards.length}</span>
+        {isFilterActive(labelFilter) ? (
+          <span className="col-count filtered" title={`${cards.length} of ${totalCount} cards match the filter`}>
+            {cards.length}/{totalCount}
+          </span>
+        ) : (
+          <span className="col-count">{cards.length}</span>
+        )}
         <button
           className="col-menu-btn"
           onClick={(e) => {
@@ -193,6 +215,7 @@ function BoardColumn({
             colId={column.id}
             labelMap={labelMap}
             showIndicator={!!dragging && dragOverCard === card.id}
+            filteredLabelIds={labelFilter.labelIds}
             actions={actions}
           />
         ))}
@@ -219,20 +242,26 @@ export default function Board({
   dragOverCard,
   draggingCol,
   colDropBefore,
+  labelFilter,
+  revealedCardIds,
   actions,
 }: BoardProps) {
+  const matches = (c: Card) => revealedCardIds.includes(c.id) || matchesLabelFilter(c.labels, labelFilter)
   return (
     <div className="board">
       {columns.map((col) => {
         const placed = col.cardIds.map((id) => cards[id]).filter((c) => c && !c.archived)
+        const awake = placed.filter((c) => !c.snoozed)
         return (
           <Fragment key={col.id}>
             {draggingCol && colDropBefore === col.id && <div className="col-drop-indicator" />}
             <BoardColumn
               column={col}
-              cards={placed.filter((c) => !c.snoozed)}
-              snoozedCount={placed.filter((c) => c.snoozed).length}
+              cards={awake.filter(matches)}
+              totalCount={awake.length}
+              snoozedCount={placed.filter((c) => c.snoozed && matches(c)).length}
               labelMap={labelMap}
+              labelFilter={labelFilter}
               menuOpen={menuColId === col.id}
               dragging={dragging}
               dragOverCol={dragOverCol}
